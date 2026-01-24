@@ -2,6 +2,7 @@
 FastAPI backend for Absorption Xiangqi (功能棋)
 """
 
+import asyncio
 import json
 import random
 import string
@@ -23,6 +24,9 @@ room_codes: Dict[str, str] = {}  # room_code -> game_id
 matchmaking_queue: List[str] = []  # List of player_ids waiting
 player_connections: Dict[str, WebSocket] = {}  # player_id -> websocket
 player_games: Dict[str, str] = {}  # player_id -> game_id
+disconnect_timers: Dict[str, asyncio.Task] = {}  # player_id -> timeout task
+
+DISCONNECT_TIMEOUT = 60  # seconds
 
 
 def generate_room_code() -> str:
@@ -87,6 +91,19 @@ async def send_game_state(player_id: str, game: Game):
 async def websocket_endpoint(websocket: WebSocket, player_id: str):
     await websocket.accept()
     player_connections[player_id] = websocket
+
+    # Cancel any disconnect timer if player is reconnecting
+    if player_id in disconnect_timers:
+        disconnect_timers[player_id].cancel()
+        del disconnect_timers[player_id]
+        # Notify opponent of reconnection
+        if player_id in player_games:
+            game_id = player_games[player_id]
+            if game_id in games:
+                await broadcast_to_game(game_id, {
+                    "type": "opponent_reconnected",
+                    "message": "对手已重新连接"
+                }, exclude_player=player_id)
 
     try:
         # If player is in a game, send current state
@@ -382,15 +399,44 @@ async def websocket_endpoint(websocket: WebSocket, player_id: str):
         if player_id in matchmaking_queue:
             matchmaking_queue.remove(player_id)
 
-        # Notify opponent of disconnect
+        # Start disconnect timeout for active games
         if player_id in player_games:
             game_id = player_games[player_id]
             if game_id in games:
                 game = games[game_id]
-                await broadcast_to_game(game_id, {
-                    "type": "opponent_disconnected",
-                    "message": "对手断开连接"
-                }, exclude_player=player_id)
+                if game.state == GameState.PLAYING:
+                    # Notify opponent and start timeout
+                    await broadcast_to_game(game_id, {
+                        "type": "opponent_disconnected",
+                        "message": f"对手断开连接，{DISCONNECT_TIMEOUT}秒内未重连将判负"
+                    }, exclude_player=player_id)
+
+                    # Start timeout task
+                    async def disconnect_timeout():
+                        await asyncio.sleep(DISCONNECT_TIMEOUT)
+                        # Check if player is still disconnected
+                        if player_id not in player_connections:
+                            if game_id in games:
+                                g = games[game_id]
+                                if g.state == GameState.PLAYING:
+                                    # Player loses
+                                    if g.red_player_id == player_id:
+                                        g.state = GameState.BLACK_WIN
+                                    else:
+                                        g.state = GameState.RED_WIN
+                                    await broadcast_to_game(game_id, {
+                                        "type": "game_over",
+                                        "reason": "disconnect",
+                                        "winner": g.state.value
+                                    })
+                        # Clean up timer
+                        if player_id in disconnect_timers:
+                            del disconnect_timers[player_id]
+
+                    # Cancel any existing timer and start new one
+                    if player_id in disconnect_timers:
+                        disconnect_timers[player_id].cancel()
+                    disconnect_timers[player_id] = asyncio.create_task(disconnect_timeout())
 
 
 # Serve static files

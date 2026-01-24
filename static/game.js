@@ -587,10 +587,6 @@ class GameUI {
             }
         });
 
-        document.getElementById('leaveBtn').addEventListener('click', () => {
-            this.showScreen('lobby');
-        });
-
         // Draw offer modal
         document.getElementById('acceptDrawBtn').addEventListener('click', () => {
             gameSocket.acceptDraw();
@@ -683,6 +679,15 @@ class GameUI {
             document.getElementById('gameStatus').textContent = data.message;
         });
 
+        gameSocket.on('opponent_reconnected', (data) => {
+            document.getElementById('gameStatus').textContent = data.message;
+            setTimeout(() => {
+                if (this.board.gameState) {
+                    this.updateGameStatus(this.board.gameState);
+                }
+            }, 2000);
+        });
+
         gameSocket.on('error', (data) => {
             alert(data.message);
         });
@@ -760,6 +765,8 @@ class GameUI {
 
         if (reason === 'resign') {
             message.textContent = youWon ? '对手认输' : '你认输了';
+        } else if (reason === 'disconnect') {
+            message.textContent = youWon ? '对手断线超时' : '你断线超时';
         } else {
             message.textContent = `${winnerColor}获胜！`;
         }
