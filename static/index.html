@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>功能棋 - 在线对战</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>功能棋</h1>
+            <p class="subtitle">吸收象棋变体</p>
+        </header>
+
+        <!-- Lobby Screen -->
+        <div id="lobby" class="screen">
+            <div class="lobby-content">
+                <h2>欢迎来到功能棋</h2>
+                <p class="rule-hint">
+                    规则：吃掉对方棋子后，获得该棋子的走法能力！
+                </p>
+
+                <div class="lobby-buttons">
+                    <button id="createRoomBtn" class="btn btn-primary">创建房间</button>
+                    <button id="matchmakingBtn" class="btn btn-secondary">随机匹配</button>
+                </div>
+
+                <div class="join-room">
+                    <h3>加入房间</h3>
+                    <div class="join-input">
+                        <input type="text" id="roomCodeInput" placeholder="输入房间代码" maxlength="4">
+                        <button id="joinRoomBtn" class="btn">加入</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Waiting Screen -->
+        <div id="waiting" class="screen hidden">
+            <div class="waiting-content">
+                <div id="waitingMessage">等待中...</div>
+                <div id="roomCodeDisplay" class="room-code"></div>
+                <button id="cancelBtn" class="btn btn-danger">取消</button>
+            </div>
+        </div>
+
+        <!-- Game Screen -->
+        <div id="game" class="screen hidden">
+            <div class="game-header">
+                <div class="player-info" id="blackInfo">
+                    <span class="player-label">黑方</span>
+                    <span class="turn-indicator" id="blackTurn"></span>
+                </div>
+                <div class="game-status" id="gameStatus"></div>
+                <div class="player-info" id="redInfo">
+                    <span class="player-label">红方</span>
+                    <span class="turn-indicator" id="redTurn"></span>
+                </div>
+            </div>
+
+            <div class="board-container">
+                <canvas id="boardCanvas" width="540" height="600"></canvas>
+            </div>
+
+            <div class="piece-info" id="pieceInfo">
+                <div class="piece-info-content">
+                    <span id="selectedPieceType"></span>
+                    <span id="selectedPieceAbilities"></span>
+                </div>
+            </div>
+
+            <div class="game-controls">
+                <button id="drawBtn" class="btn btn-secondary">求和</button>
+                <button id="resignBtn" class="btn btn-danger">认输</button>
+                <button id="leaveBtn" class="btn">离开</button>
+            </div>
+
+            <!-- Draw Offer Modal -->
+            <div id="drawOfferModal" class="modal hidden">
+                <div class="modal-content">
+                    <h2>和棋请求</h2>
+                    <p>对手请求和棋，是否同意？</p>
+                    <div class="modal-buttons">
+                        <button id="acceptDrawBtn" class="btn btn-primary">同意</button>
+                        <button id="declineDrawBtn" class="btn btn-danger">拒绝</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Game Over Modal -->
+        <div id="gameOverModal" class="modal hidden">
+            <div class="modal-content">
+                <h2 id="gameOverTitle">游戏结束</h2>
+                <p id="gameOverMessage"></p>
+                <div class="modal-buttons">
+                    <button id="rematchBtn" class="btn btn-primary">再来一局</button>
+                    <button id="backToLobbyBtn" class="btn">返回大厅</button>
+                </div>
+                <p id="rematchStatus" class="rematch-status"></p>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/websocket.js"></script>
+    <script src="/static/game.js"></script>
+</body>
+</html>
