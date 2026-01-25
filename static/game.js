@@ -373,12 +373,7 @@ class GameBoard {
             const piece = this.getPieceAt(row, col);
             if (piece && piece.color === this.playerColor) {
                 this.selectedPiece = piece;
-                if (isAIGame) {
-                    this.validMoves = this.computeValidMovesLocal(piece);
-                } else {
-                    this.validMoves = [];  // Wait for server validation
-                    gameSocket.getValidMoves(row, col);
-                }
+                this.validMoves = this.computeValidMovesLocal(piece);
                 this.updatePieceInfo(piece);
                 this.draw();
                 return;
@@ -396,12 +391,7 @@ class GameBoard {
         const piece = this.getPieceAt(row, col);
         if (piece && piece.color === this.playerColor) {
             this.selectedPiece = piece;
-            if (isAIGame) {
-                this.validMoves = this.computeValidMovesLocal(piece);
-            } else {
-                this.validMoves = [];  // Wait for server validation
-                gameSocket.getValidMoves(row, col);
-            }
+            this.validMoves = this.computeValidMovesLocal(piece);
             this.updatePieceInfo(piece);
         }
 
@@ -413,8 +403,11 @@ class GameBoard {
         const moves = [];
         const allTypes = [piece.type, ...(piece.abilities || [])];
 
+        // Check if piece has gained abilities (becomes "full board" piece)
+        const hasAbilities = piece.abilities && piece.abilities.length > 0;
+
         for (const moveType of allTypes) {
-            const typeMoves = this.getMovesForType(piece, moveType);
+            const typeMoves = this.getMovesForType(piece, moveType, hasAbilities);
             moves.push(...typeMoves);
         }
 
@@ -426,18 +419,128 @@ class GameBoard {
             if (!seen.has(key) && r >= 0 && r <= 9 && c >= 0 && c <= 8) {
                 const target = this.getPieceAt(r, c);
                 if (!target || target.color !== piece.color) {
-                    seen.add(key);
-                    uniqueMoves.push([r, c]);
+                    // Check if this move would leave our king in check
+                    if (!this.wouldBeInCheck(piece, r, c)) {
+                        seen.add(key);
+                        uniqueMoves.push([r, c]);
+                    }
                 }
             }
         }
         return uniqueMoves;
     }
 
-    getMovesForType(piece, moveType) {
+    // Check if moving a piece to a position would leave our king in check
+    wouldBeInCheck(piece, toRow, toCol) {
+        if (!this.gameState) return false;
+
+        // Simulate the move
+        const fromRow = piece.row;
+        const fromCol = piece.col;
+        const capturedPiece = this.getPieceAt(toRow, toCol);
+
+        // Temporarily move the piece
+        piece.row = toRow;
+        piece.col = toCol;
+
+        // Temporarily remove captured piece
+        let capturedIdx = -1;
+        if (capturedPiece) {
+            capturedIdx = this.gameState.board.pieces.indexOf(capturedPiece);
+            if (capturedIdx !== -1) {
+                this.gameState.board.pieces.splice(capturedIdx, 1);
+            }
+        }
+
+        // Check if our king is in check
+        const inCheck = this.isKingInCheck(piece.color);
+
+        // Restore the position
+        piece.row = fromRow;
+        piece.col = fromCol;
+        if (capturedPiece && capturedIdx !== -1) {
+            this.gameState.board.pieces.splice(capturedIdx, 0, capturedPiece);
+        }
+
+        return inCheck;
+    }
+
+    // Check if the king of the given color is in check
+    isKingInCheck(color) {
+        if (!this.gameState) return false;
+
+        // Find the king
+        const king = this.gameState.board.pieces.find(p => p.type === 'general' && p.color === color);
+        if (!king) return false;
+
+        const enemyColor = color === 'red' ? 'black' : 'red';
+
+        // Check if any enemy piece can capture the king
+        for (const enemy of this.gameState.board.pieces) {
+            if (enemy.color !== enemyColor) continue;
+
+            const allTypes = [enemy.type, ...(enemy.abilities || [])];
+            const hasAbilities = enemy.abilities && enemy.abilities.length > 0;
+
+            for (const moveType of allTypes) {
+                const moves = this.getMovesForType(enemy, moveType, hasAbilities);
+                for (const [r, c] of moves) {
+                    if (r === king.row && c === king.col) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        // Check for flying general (generals facing each other)
+        const enemyKing = this.gameState.board.pieces.find(p => p.type === 'general' && p.color === enemyColor);
+        if (enemyKing && king.col === enemyKing.col) {
+            // Check if there are any pieces between them
+            const minRow = Math.min(king.row, enemyKing.row);
+            const maxRow = Math.max(king.row, enemyKing.row);
+            let blocked = false;
+            for (let r = minRow + 1; r < maxRow; r++) {
+                if (this.getPieceAt(r, king.col)) {
+                    blocked = true;
+                    break;
+                }
+            }
+            if (!blocked) return true;
+        }
+
+        return false;
+    }
+
+    getMovesForType(piece, moveType, hasAbilities = false) {
         const moves = [];
         const row = piece.row;
         const col = piece.col;
+        const isGeneral = piece.type === 'general';
+
+        // Helper to check if position is in palace
+        const inPalace = (r, c, color) => {
+            if (c < 3 || c > 5) return false;
+            if (color === 'red') return r >= 0 && r <= 2;
+            return r >= 7 && r <= 9;
+        };
+
+        // Helper to check if position is on own side of river
+        const onOwnSide = (r, color) => {
+            if (color === 'red') return r <= 4;
+            return r >= 5;
+        };
+
+        // Helper to add move, respecting general's palace restriction
+        const addMove = (nr, nc) => {
+            if (isGeneral) {
+                // General can NEVER leave palace, even with abilities
+                if (inPalace(nr, nc, piece.color)) {
+                    moves.push([nr, nc]);
+                }
+            } else {
+                moves.push([nr, nc]);
+            }
+        };
 
         switch (moveType) {
             case 'chariot':
@@ -446,8 +549,10 @@ class GameBoard {
                     for (let i = 1; i < 10; i++) {
                         const nr = row + dr * i, nc = col + dc * i;
                         if (nr < 0 || nr > 9 || nc < 0 || nc > 8) break;
+                        // General must stay in palace
+                        if (isGeneral && !inPalace(nr, nc, piece.color)) break;
                         const target = this.getPieceAt(nr, nc);
-                        moves.push([nr, nc]);
+                        addMove(nr, nc);
                         if (target) break;
                     }
                 }
@@ -463,7 +568,7 @@ class GameBoard {
                 ];
                 for (const [[br, bc], [mr, mc]] of horseMoves) {
                     if (!this.getPieceAt(row + br, col + bc)) {
-                        moves.push([row + mr, col + mc]);
+                        addMove(row + mr, col + mc);
                     }
                 }
                 break;
@@ -477,10 +582,10 @@ class GameBoard {
                         if (nr < 0 || nr > 9 || nc < 0 || nc > 8) break;
                         const target = this.getPieceAt(nr, nc);
                         if (!jumped) {
-                            if (!target) moves.push([nr, nc]);
+                            if (!target) addMove(nr, nc);
                             else jumped = true;
                         } else {
-                            if (target) { moves.push([nr, nc]); break; }
+                            if (target) { addMove(nr, nc); break; }
                         }
                     }
                 }
@@ -489,34 +594,56 @@ class GameBoard {
             case 'soldier':
                 // Pawn movement - sideways only allowed on opponent's side
                 const forward = piece.color === 'red' ? 1 : -1;
-                moves.push([row + forward, col]);
+                addMove(row + forward, col);
+                // After crossing river OR after gaining abilities, can move sideways
                 const crossed = (piece.color === 'red' && row >= 5) || (piece.color === 'black' && row <= 4);
-                if (crossed) {
-                    moves.push([row, col - 1]);
-                    moves.push([row, col + 1]);
+                if (crossed || hasAbilities) {
+                    addMove(row, col - 1);
+                    addMove(row, col + 1);
                 }
                 break;
 
             case 'advisor':
-                // Diagonal one step
+                // Diagonal one step - palace restricted unless has abilities (but general always restricted)
                 for (const [dr, dc] of [[1,1],[1,-1],[-1,1],[-1,-1]]) {
-                    moves.push([row + dr, col + dc]);
+                    const nr = row + dr, nc = col + dc;
+                    if (isGeneral || !hasAbilities) {
+                        if (inPalace(nr, nc, piece.color)) {
+                            moves.push([nr, nc]);
+                        }
+                    } else {
+                        moves.push([nr, nc]);
+                    }
                 }
                 break;
 
             case 'elephant':
-                // Diagonal two steps with blocking
+                // Diagonal two steps with blocking - river restricted unless has abilities
                 for (const [dr, dc] of [[2,2],[2,-2],[-2,2],[-2,-2]]) {
+                    const nr = row + dr, nc = col + dc;
                     if (!this.getPieceAt(row + dr/2, col + dc/2)) {
-                        moves.push([row + dr, col + dc]);
+                        if (isGeneral) {
+                            if (inPalace(nr, nc, piece.color)) {
+                                moves.push([nr, nc]);
+                            }
+                        } else if (!hasAbilities) {
+                            if (onOwnSide(nr, piece.color)) {
+                                moves.push([nr, nc]);
+                            }
+                        } else {
+                            moves.push([nr, nc]);
+                        }
                     }
                 }
                 break;
 
             case 'general':
-                // One step orthogonal
+                // One step orthogonal - always palace restricted
                 for (const [dr, dc] of [[0,1],[0,-1],[1,0],[-1,0]]) {
-                    moves.push([row + dr, col + dc]);
+                    const nr = row + dr, nc = col + dc;
+                    if (inPalace(nr, nc, piece.color)) {
+                        moves.push([nr, nc]);
+                    }
                 }
                 break;
         }
