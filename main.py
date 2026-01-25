@@ -17,6 +17,14 @@ from game import get_valid_moves, make_move
 import os
 from datetime import datetime
 
+# Pikafish engine integration
+try:
+    from pikafish_engine import get_pikafish_move
+    PIKAFISH_AVAILABLE = True
+except Exception as e:
+    print(f"Warning: Pikafish engine not available: {e}")
+    PIKAFISH_AVAILABLE = False
+
 
 app = FastAPI(title="Absorption Xiangqi 功能棋")
 
@@ -542,6 +550,44 @@ async def replay_page(game_id: str):
 async def join_page(room_code: str):
     """Serve the main page with room code to auto-join"""
     return FileResponse("static/index.html")
+
+
+# Pikafish AI endpoint
+
+class PikafishMoveRequest(BaseModel):
+    move_history: list
+    difficulty: str = "pikafish_medium"
+
+
+@app.get("/api/pikafish/status")
+async def pikafish_status():
+    """Check if Pikafish engine is available"""
+    return {"available": PIKAFISH_AVAILABLE}
+
+
+@app.post("/api/pikafish/move")
+async def get_pikafish_ai_move(request: PikafishMoveRequest):
+    """Get a move from Pikafish engine"""
+    import logging
+    logging.basicConfig(level=logging.DEBUG)
+    logger = logging.getLogger(__name__)
+
+    logger.debug(f"Pikafish move request: history={request.move_history}, difficulty={request.difficulty}")
+
+    if not PIKAFISH_AVAILABLE:
+        logger.error("Pikafish not available")
+        return {"error": "Pikafish engine not available", "success": False}
+
+    try:
+        move = get_pikafish_move(request.move_history, request.difficulty)
+        logger.debug(f"Pikafish returned: {move}")
+        if move:
+            return {"success": True, "move": move}
+        else:
+            return {"success": False, "error": "Engine returned no move"}
+    except Exception as e:
+        logger.exception(f"Pikafish error: {e}")
+        return {"success": False, "error": str(e)}
 
 
 # Serve static files

@@ -1,6 +1,8 @@
 /**
  * Game rendering and logic for Absorption Xiangqi
+ * Version: 2.0 (with Pikafish integration)
  */
+console.log('Game.js loaded - v2.0 with Pikafish');
 
 // Piece names in Chinese
 const PIECE_NAMES = {
@@ -371,9 +373,11 @@ class GameBoard {
             const piece = this.getPieceAt(row, col);
             if (piece && piece.color === this.playerColor) {
                 this.selectedPiece = piece;
-                this.validMoves = this.computeValidMovesLocal(piece);
-                if (!isAIGame) {
-                    gameSocket.getValidMoves(row, col);  // Also get server validation
+                if (isAIGame) {
+                    this.validMoves = this.computeValidMovesLocal(piece);
+                } else {
+                    this.validMoves = [];  // Wait for server validation
+                    gameSocket.getValidMoves(row, col);
                 }
                 this.updatePieceInfo(piece);
                 this.draw();
@@ -392,9 +396,11 @@ class GameBoard {
         const piece = this.getPieceAt(row, col);
         if (piece && piece.color === this.playerColor) {
             this.selectedPiece = piece;
-            this.validMoves = this.computeValidMovesLocal(piece);
-            if (!isAIGame) {
-                gameSocket.getValidMoves(row, col);  // Also get server validation
+            if (isAIGame) {
+                this.validMoves = this.computeValidMovesLocal(piece);
+            } else {
+                this.validMoves = [];  // Wait for server validation
+                gameSocket.getValidMoves(row, col);
             }
             this.updatePieceInfo(piece);
         }
@@ -565,8 +571,15 @@ class GameUI {
         this.moveHistory = [];  // Track moves for sharing
         this.currentGameId = null;  // Game ID for sharing
 
+        // Pikafish state
+        this.usePikafish = false;
+        this.pikafishAvailable = false;
+
         this.setupEventListeners();
         this.setupWebSocketHandlers();
+
+        // Check if Pikafish is available
+        this.checkPikafishStatus();
 
         // Connect to server
         gameSocket.connect().then(() => {
@@ -576,6 +589,22 @@ class GameUI {
         }).catch((error) => {
             console.error('Failed to connect:', error);
         });
+    }
+
+    async checkPikafishStatus() {
+        try {
+            const response = await fetch('/api/pikafish/status');
+            const data = await response.json();
+            console.log('Pikafish status:', data);
+            this.pikafishAvailable = data.available;
+            if (this.pikafishAvailable) {
+                document.getElementById('pikafishLabel').style.display = 'block';
+                document.getElementById('pikafishGrid').style.display = 'grid';
+                console.log('Pikafish UI enabled');
+            }
+        } catch (error) {
+            console.error('Pikafish status check failed:', error);
+        }
     }
 
     checkJoinLink() {
@@ -615,6 +644,23 @@ class GameUI {
 
         document.getElementById('cancelAIBtn').addEventListener('click', () => {
             document.getElementById('aiDifficultyModal').classList.add('hidden');
+        });
+
+        // Pikafish buttons
+        document.getElementById('pikafishEasyBtn').addEventListener('click', () => {
+            this.startPikafishGame('pikafish_easy');
+        });
+
+        document.getElementById('pikafishMediumBtn').addEventListener('click', () => {
+            this.startPikafishGame('pikafish_medium');
+        });
+
+        document.getElementById('pikafishHardBtn').addEventListener('click', () => {
+            this.startPikafishGame('pikafish_hard');
+        });
+
+        document.getElementById('pikafishExtremeBtn').addEventListener('click', () => {
+            this.startPikafishGame('pikafish_extreme');
         });
 
         // Lobby buttons
@@ -705,10 +751,7 @@ class GameUI {
             document.getElementById('rematchBtn').disabled = false;
             document.getElementById('shareGameBtn').style.display = 'none';
             // Reset AI game state
-            this.isAIGame = false;
-            this.localGameState = null;
-            this.moveHistory = [];
-            this.currentGameId = null;
+            this.resetAIState();
             // Show draw button again
             document.getElementById('drawBtn').style.display = '';
             this.showScreen('lobby');
@@ -934,6 +977,7 @@ class GameUI {
         document.getElementById('aiDifficultyModal').classList.add('hidden');
 
         this.isAIGame = true;
+        this.usePikafish = false;  // Use JavaScript AI
         this.aiDifficulty = difficulty;
         this.playerColor = 'red';  // Player always plays red
         this.aiColor = 'black';
@@ -942,6 +986,28 @@ class GameUI {
 
         // Initialize AI with selected difficulty
         xiangqiAI.setDifficulty(difficulty);
+
+        // Create initial game state
+        this.localGameState = this.createInitialGameState();
+        this.board.setGameState(this.localGameState, this.playerColor);
+
+        this.showScreen('game');
+        this.updateGameStatus({ current_turn: 'red' });
+
+        // Hide draw button for AI games
+        document.getElementById('drawBtn').style.display = 'none';
+    }
+
+    startPikafishGame(difficulty) {
+        document.getElementById('aiDifficultyModal').classList.add('hidden');
+
+        this.isAIGame = true;
+        this.usePikafish = true;  // Use Pikafish engine
+        this.aiDifficulty = difficulty;
+        this.playerColor = 'red';  // Player always plays red
+        this.aiColor = 'black';
+        this.moveHistory = [];  // Reset move history
+        this.currentGameId = this.generateGameId();  // Generate new game ID
 
         // Create initial game state
         this.localGameState = this.createInitialGameState();
@@ -1000,22 +1066,76 @@ class GameUI {
         if (!this.isAIGame || !this.localGameState || this.localGameState.state !== 'playing') return;
         if (this.localGameState.current_turn !== this.aiColor) return;
 
-        document.getElementById('gameStatus').textContent = '电脑思考中...';
+        document.getElementById('gameStatus').textContent = this.usePikafish ? 'Pikafish 思考中...' : '电脑思考中...';
 
-        // Use setTimeout to allow UI to update
-        setTimeout(() => {
-            const move = xiangqiAI.getBestMove(this.localGameState, this.aiColor);
+        if (this.usePikafish) {
+            this.makePikafishMove();
+        } else {
+            // Use setTimeout to allow UI to update
+            setTimeout(() => {
+                const move = xiangqiAI.getBestMove(this.localGameState, this.aiColor);
 
-            if (!move) {
-                // AI has no moves - player wins
-                this.localGameState.state = 'red_win';
-                this.showGameOver('red_win', 'checkmate');
-                return;
+                if (!move) {
+                    // AI has no moves - player wins
+                    this.localGameState.state = 'red_win';
+                    this.showGameOver('red_win', 'checkmate');
+                    return;
+                }
+
+                // Apply the move
+                this.applyLocalMove(move.from.row, move.from.col, move.to.row, move.to.col);
+            }, 100);
+        }
+    }
+
+    async makePikafishMove() {
+        try {
+            console.log('Calling Pikafish API with:', {
+                move_history: this.moveHistory,
+                difficulty: this.aiDifficulty
+            });
+
+            const response = await fetch('/api/pikafish/move', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    move_history: this.moveHistory,
+                    difficulty: this.aiDifficulty
+                })
+            });
+
+            const data = await response.json();
+            console.log('Pikafish API response:', data);
+
+            if (data.success && data.move) {
+                this.applyLocalMove(
+                    data.move.from.row,
+                    data.move.from.col,
+                    data.move.to.row,
+                    data.move.to.col
+                );
+            } else {
+                // Pikafish failed, fall back to JS AI
+                console.error('Pikafish failed:', data.error);
+                document.getElementById('gameStatus').textContent = 'Pikafish 出错，使用备用 AI...';
+                setTimeout(() => {
+                    const move = xiangqiAI.getBestMove(this.localGameState, this.aiColor);
+                    if (move) {
+                        this.applyLocalMove(move.from.row, move.from.col, move.to.row, move.to.col);
+                    } else {
+                        this.localGameState.state = 'red_win';
+                        this.showGameOver('red_win', 'checkmate');
+                    }
+                }, 100);
             }
-
-            // Apply the move
-            this.applyLocalMove(move.from.row, move.from.col, move.to.row, move.to.col);
-        }, 100);
+        } catch (error) {
+            console.error('Pikafish request failed:', error);
+            // Fall back to JS AI
+            const move = xiangqiAI.getBestMove(this.localGameState, this.aiColor);
+            if (move) {
+                this.applyLocalMove(move.from.row, move.from.col, move.to.row, move.to.col);
+            }
+        }
     }
 
     applyLocalMove(fromRow, fromCol, toRow, toCol) {
@@ -1122,6 +1242,15 @@ class GameUI {
         if (this.aiColor === 'red') {
             this.makeAIMove();
         }
+    }
+
+    // Reset AI flags when going back to lobby
+    resetAIState() {
+        this.isAIGame = false;
+        this.usePikafish = false;
+        this.localGameState = null;
+        this.moveHistory = [];
+        this.currentGameId = null;
     }
 }
 
