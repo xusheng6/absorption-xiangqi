@@ -328,18 +328,38 @@ class GameBoard {
         // Bounds check
         if (row < 0 || row > 9 || col < 0 || col > 8) return;
 
+        // Check if this is an AI game
+        const isAIGame = window.gameUI && window.gameUI.isAIGame;
+
+        // In AI game, only allow moves on player's turn
+        if (isAIGame) {
+            const state = window.gameUI.localGameState;
+            if (!state || state.state !== 'playing' || state.current_turn !== this.playerColor) {
+                return;
+            }
+        }
+
         // If we have a selected piece and clicked on a valid move
         if (this.selectedPiece) {
             const isValidMove = this.validMoves.some(([r, c]) => r === row && c === col);
 
             if (isValidMove) {
                 // Make the move
-                gameSocket.makeMove(
-                    this.selectedPiece.row,
-                    this.selectedPiece.col,
-                    row,
-                    col
-                );
+                if (isAIGame) {
+                    window.gameUI.applyLocalMove(
+                        this.selectedPiece.row,
+                        this.selectedPiece.col,
+                        row,
+                        col
+                    );
+                } else {
+                    gameSocket.makeMove(
+                        this.selectedPiece.row,
+                        this.selectedPiece.col,
+                        row,
+                        col
+                    );
+                }
                 this.selectedPiece = null;
                 this.validMoves = [];
                 this.draw();
@@ -352,7 +372,9 @@ class GameBoard {
             if (piece && piece.color === this.playerColor) {
                 this.selectedPiece = piece;
                 this.validMoves = this.computeValidMovesLocal(piece);
-                gameSocket.getValidMoves(row, col);  // Also get server validation
+                if (!isAIGame) {
+                    gameSocket.getValidMoves(row, col);  // Also get server validation
+                }
                 this.updatePieceInfo(piece);
                 this.draw();
                 return;
@@ -371,7 +393,9 @@ class GameBoard {
         if (piece && piece.color === this.playerColor) {
             this.selectedPiece = piece;
             this.validMoves = this.computeValidMovesLocal(piece);
-            gameSocket.getValidMoves(row, col);  // Also get server validation
+            if (!isAIGame) {
+                gameSocket.getValidMoves(row, col);  // Also get server validation
+            }
             this.updatePieceInfo(piece);
         }
 
@@ -533,6 +557,12 @@ class GameUI {
         this.playerColor = null;
         this.roomCode = null;
 
+        // AI game state
+        this.isAIGame = false;
+        this.aiDifficulty = 'medium';
+        this.aiColor = null;
+        this.localGameState = null;
+
         this.setupEventListeners();
         this.setupWebSocketHandlers();
 
@@ -545,6 +575,28 @@ class GameUI {
     }
 
     setupEventListeners() {
+        // AI button
+        document.getElementById('playAIBtn').addEventListener('click', () => {
+            document.getElementById('aiDifficultyModal').classList.remove('hidden');
+        });
+
+        // AI difficulty buttons
+        document.getElementById('aiEasyBtn').addEventListener('click', () => {
+            this.startAIGame('easy');
+        });
+
+        document.getElementById('aiMediumBtn').addEventListener('click', () => {
+            this.startAIGame('medium');
+        });
+
+        document.getElementById('aiHardBtn').addEventListener('click', () => {
+            this.startAIGame('hard');
+        });
+
+        document.getElementById('cancelAIBtn').addEventListener('click', () => {
+            document.getElementById('aiDifficultyModal').classList.add('hidden');
+        });
+
         // Lobby buttons
         document.getElementById('createRoomBtn').addEventListener('click', () => {
             gameSocket.createRoom();
@@ -583,7 +635,13 @@ class GameUI {
 
         document.getElementById('resignBtn').addEventListener('click', () => {
             if (confirm('确定要认输吗？')) {
-                gameSocket.resign();
+                if (this.isAIGame) {
+                    // AI game resign
+                    this.localGameState.state = this.playerColor === 'red' ? 'black_win' : 'red_win';
+                    this.showGameOver(this.localGameState.state, 'resign');
+                } else {
+                    gameSocket.resign();
+                }
             }
         });
 
@@ -600,15 +658,24 @@ class GameUI {
 
         // Game over modal
         document.getElementById('rematchBtn').addEventListener('click', () => {
-            gameSocket.requestRematch();
-            document.getElementById('rematchStatus').textContent = '等待对手同意...';
-            document.getElementById('rematchBtn').disabled = true;
+            if (this.isAIGame) {
+                this.startAIRematch();
+            } else {
+                gameSocket.requestRematch();
+                document.getElementById('rematchStatus').textContent = '等待对手同意...';
+                document.getElementById('rematchBtn').disabled = true;
+            }
         });
 
         document.getElementById('backToLobbyBtn').addEventListener('click', () => {
             document.getElementById('gameOverModal').classList.add('hidden');
             document.getElementById('rematchStatus').textContent = '';
             document.getElementById('rematchBtn').disabled = false;
+            // Reset AI game state
+            this.isAIGame = false;
+            this.localGameState = null;
+            // Show draw button again
+            document.getElementById('drawBtn').style.display = '';
             this.showScreen('lobby');
         });
     }
@@ -769,6 +836,179 @@ class GameUI {
             message.textContent = youWon ? '对手断线超时' : '你断线超时';
         } else {
             message.textContent = `${winnerColor}获胜！`;
+        }
+    }
+
+    // AI Game Methods
+    startAIGame(difficulty) {
+        document.getElementById('aiDifficultyModal').classList.add('hidden');
+
+        this.isAIGame = true;
+        this.aiDifficulty = difficulty;
+        this.playerColor = 'red';  // Player always plays red
+        this.aiColor = 'black';
+
+        // Initialize AI with selected difficulty
+        xiangqiAI.difficulty = difficulty;
+        xiangqiAI.maxDepth = difficulty === 'easy' ? 2 : difficulty === 'medium' ? 3 : 4;
+
+        // Create initial game state
+        this.localGameState = this.createInitialGameState();
+        this.board.setGameState(this.localGameState, this.playerColor);
+
+        this.showScreen('game');
+        this.updateGameStatus({ current_turn: 'red' });
+
+        // Hide draw button for AI games
+        document.getElementById('drawBtn').style.display = 'none';
+    }
+
+    createInitialGameState() {
+        // Create the initial board setup
+        const pieces = [];
+
+        // Red pieces (bottom, rows 0-4)
+        // Row 0: Chariot, Horse, Elephant, Advisor, General, Advisor, Elephant, Horse, Chariot
+        const backRow = ['chariot', 'horse', 'elephant', 'advisor', 'general', 'advisor', 'elephant', 'horse', 'chariot'];
+        for (let col = 0; col < 9; col++) {
+            pieces.push({ type: backRow[col], color: 'red', row: 0, col: col, abilities: [] });
+        }
+        // Row 2: Cannons
+        pieces.push({ type: 'cannon', color: 'red', row: 2, col: 1, abilities: [] });
+        pieces.push({ type: 'cannon', color: 'red', row: 2, col: 7, abilities: [] });
+        // Row 3: Soldiers
+        for (let col = 0; col < 9; col += 2) {
+            pieces.push({ type: 'soldier', color: 'red', row: 3, col: col, abilities: [] });
+        }
+
+        // Black pieces (top, rows 5-9)
+        // Row 9: Chariot, Horse, Elephant, Advisor, General, Advisor, Elephant, Horse, Chariot
+        for (let col = 0; col < 9; col++) {
+            pieces.push({ type: backRow[col], color: 'black', row: 9, col: col, abilities: [] });
+        }
+        // Row 7: Cannons
+        pieces.push({ type: 'cannon', color: 'black', row: 7, col: 1, abilities: [] });
+        pieces.push({ type: 'cannon', color: 'black', row: 7, col: 7, abilities: [] });
+        // Row 6: Soldiers
+        for (let col = 0; col < 9; col += 2) {
+            pieces.push({ type: 'soldier', color: 'black', row: 6, col: col, abilities: [] });
+        }
+
+        return {
+            board: { pieces: pieces },
+            current_turn: 'red',
+            state: 'playing'
+        };
+    }
+
+    makeAIMove() {
+        if (!this.isAIGame || !this.localGameState || this.localGameState.state !== 'playing') return;
+        if (this.localGameState.current_turn !== this.aiColor) return;
+
+        document.getElementById('gameStatus').textContent = '电脑思考中...';
+
+        // Use setTimeout to allow UI to update
+        setTimeout(() => {
+            const move = xiangqiAI.getBestMove(this.localGameState, this.aiColor);
+
+            if (!move) {
+                // AI has no moves - player wins
+                this.localGameState.state = 'red_win';
+                this.showGameOver('red_win', 'checkmate');
+                return;
+            }
+
+            // Apply the move
+            this.applyLocalMove(move.from.row, move.from.col, move.to.row, move.to.col);
+        }, 100);
+    }
+
+    applyLocalMove(fromRow, fromCol, toRow, toCol) {
+        const state = this.localGameState;
+        const pieceIdx = state.board.pieces.findIndex(p => p.row === fromRow && p.col === fromCol);
+        if (pieceIdx === -1) return;
+
+        const piece = state.board.pieces[pieceIdx];
+
+        // Check for capture
+        const targetIdx = state.board.pieces.findIndex(p => p.row === toRow && p.col === toCol);
+        if (targetIdx !== -1) {
+            const target = state.board.pieces[targetIdx];
+
+            // Absorption: gain target's default type if not already have it
+            if (target.type !== piece.type && !piece.abilities.includes(target.type)) {
+                piece.abilities.push(target.type);
+            }
+
+            // Remove captured piece
+            state.board.pieces.splice(targetIdx, 1);
+
+            // Check if general was captured
+            if (target.type === 'general') {
+                state.state = target.color === 'red' ? 'black_win' : 'red_win';
+            }
+        }
+
+        // Move the piece
+        piece.row = toRow;
+        piece.col = toCol;
+
+        // Switch turns
+        state.current_turn = state.current_turn === 'red' ? 'black' : 'red';
+
+        // Update board display
+        this.board.setGameState(state, this.playerColor);
+        this.board.selectedPiece = null;
+        this.board.validMoves = [];
+
+        // Check for game over
+        if (state.state !== 'playing') {
+            this.showGameOver(state.state);
+            return;
+        }
+
+        // Check if opponent is in checkmate
+        const currentPlayerMoves = xiangqiAI.getAllMoves(state, state.current_turn);
+        if (currentPlayerMoves.length === 0) {
+            // No valid moves - checkmate or stalemate
+            if (xiangqiAI.isInCheck(state, state.current_turn)) {
+                state.state = state.current_turn === 'red' ? 'black_win' : 'red_win';
+                this.showGameOver(state.state, 'checkmate');
+            } else {
+                // Stalemate - could be a draw, but in xiangqi usually the stalemated player loses
+                state.state = state.current_turn === 'red' ? 'black_win' : 'red_win';
+                this.showGameOver(state.state, 'stalemate');
+            }
+            return;
+        }
+
+        // Update status
+        this.updateGameStatus(state);
+
+        // If it's AI's turn, make AI move
+        if (state.current_turn === this.aiColor) {
+            this.makeAIMove();
+        }
+    }
+
+    // Handle AI game rematch
+    startAIRematch() {
+        // Swap colors
+        const temp = this.playerColor;
+        this.playerColor = this.aiColor;
+        this.aiColor = temp;
+
+        // Create new game
+        this.localGameState = this.createInitialGameState();
+        this.board.setGameState(this.localGameState, this.playerColor);
+
+        document.getElementById('gameOverModal').classList.add('hidden');
+        document.getElementById('rematchStatus').textContent = '';
+        document.getElementById('gameStatus').textContent = '新一局开始！双方交换颜色！';
+
+        // If AI plays red, make first move
+        if (this.aiColor === 'red') {
+            this.makeAIMove();
         }
     }
 }

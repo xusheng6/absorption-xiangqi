@@ -306,6 +306,11 @@ header h1 {
     font-size: 0.9em;
 }
 
+/* Difficulty buttons */
+.difficulty-buttons {
+    flex-wrap: wrap;
+}
+
 /* Responsive */
 @media (max-width: 600px) {
     .container {

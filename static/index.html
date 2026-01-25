@@ -22,7 +22,8 @@
                 </p>
 
                 <div class="lobby-buttons">
-                    <button id="createRoomBtn" class="btn btn-primary">创建房间</button>
+                    <button id="playAIBtn" class="btn btn-primary">人机对战</button>
+                    <button id="createRoomBtn" class="btn btn-secondary">创建房间</button>
                     <button id="matchmakingBtn" class="btn btn-secondary">随机匹配</button>
                 </div>
 
@@ -100,9 +101,23 @@
                 <p id="rematchStatus" class="rematch-status"></p>
             </div>
         </div>
+
+        <!-- AI Difficulty Modal -->
+        <div id="aiDifficultyModal" class="modal hidden">
+            <div class="modal-content">
+                <h2>选择难度</h2>
+                <div class="modal-buttons difficulty-buttons">
+                    <button id="aiEasyBtn" class="btn btn-secondary">简单</button>
+                    <button id="aiMediumBtn" class="btn btn-primary">中等</button>
+                    <button id="aiHardBtn" class="btn btn-danger">困难</button>
+                </div>
+                <button id="cancelAIBtn" class="btn" style="margin-top: 15px;">取消</button>
+            </div>
+        </div>
     </div>
 
     <script src="/static/websocket.js"></script>
+    <script src="/static/ai.js"></script>
     <script src="/static/game.js"></script>
 </body>
 </html>
