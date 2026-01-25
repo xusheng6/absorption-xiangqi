@@ -307,8 +307,62 @@ header h1 {
 }
 
 /* Difficulty buttons */
-.difficulty-buttons {
-    flex-wrap: wrap;
+.difficulty-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+.difficulty-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 15px 20px;
+    min-width: 120px;
+}
+
+.diff-name {
+    font-size: 1.2em;
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.diff-info {
+    font-size: 0.8em;
+    opacity: 0.8;
+}
+
+.btn-extreme {
+    background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);
+    color: white;
+    border: 2px solid #a78bfa;
+}
+
+.btn-extreme:hover {
+    background: linear-gradient(135deg, #a78bfa 0%, #7c3aed 100%);
+}
+
+/* Replay controls */
+.replay-controls {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.move-counter {
+    min-width: 80px;
+    text-align: center;
+    font-size: 1.1em;
+}
+
+.game-info {
+    text-align: center;
+    color: #aaa;
+    margin-top: 15px;
+    font-size: 0.9em;
 }
 
 /* Responsive */

@@ -14,6 +14,8 @@ from pydantic import BaseModel
 
 from models import Game, GameState, Color
 from game import get_valid_moves, make_move
+import os
+from datetime import datetime
 
 
 app = FastAPI(title="Absorption Xiangqi 功能棋")
@@ -27,6 +29,11 @@ player_games: Dict[str, str] = {}  # player_id -> game_id
 disconnect_timers: Dict[str, asyncio.Task] = {}  # player_id -> timeout task
 
 DISCONNECT_TIMEOUT = 60  # seconds
+SAVED_GAMES_DIR = "saved_games"
+MAX_SAVED_GAMES = 10000
+
+# Ensure saved games directory exists
+os.makedirs(SAVED_GAMES_DIR, exist_ok=True)
 
 
 def generate_room_code() -> str:
@@ -437,6 +444,98 @@ async def websocket_endpoint(websocket: WebSocket, player_id: str):
                     if player_id in disconnect_timers:
                         disconnect_timers[player_id].cancel()
                     disconnect_timers[player_id] = asyncio.create_task(disconnect_timeout())
+
+
+# API endpoints for game history
+
+class SaveGameRequest(BaseModel):
+    game_id: str
+    moves: list
+    result: str  # "red_win", "black_win", "draw"
+    is_ai_game: bool = False
+    ai_difficulty: Optional[str] = None
+
+
+def save_game_to_file(game_id: str, game_data: dict):
+    """Save game data to a JSON file"""
+    filepath = os.path.join(SAVED_GAMES_DIR, f"{game_id}.json")
+    with open(filepath, 'w', encoding='utf-8') as f:
+        json.dump(game_data, f, ensure_ascii=False, indent=2)
+
+
+def load_game_from_file(game_id: str) -> Optional[dict]:
+    """Load game data from a JSON file"""
+    filepath = os.path.join(SAVED_GAMES_DIR, f"{game_id}.json")
+    if os.path.exists(filepath):
+        with open(filepath, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return None
+
+
+def cleanup_old_games():
+    """Remove oldest games if we exceed the limit"""
+    game_files = []
+    for filename in os.listdir(SAVED_GAMES_DIR):
+        if filename.endswith('.json'):
+            filepath = os.path.join(SAVED_GAMES_DIR, filename)
+            game_files.append((filepath, os.path.getmtime(filepath)))
+
+    if len(game_files) >= MAX_SAVED_GAMES:
+        # Sort by modification time (oldest first)
+        game_files.sort(key=lambda x: x[1])
+        # Remove oldest 10% when at limit
+        to_remove = len(game_files) - MAX_SAVED_GAMES + MAX_SAVED_GAMES // 10
+        for filepath, _ in game_files[:to_remove]:
+            try:
+                os.remove(filepath)
+            except Exception:
+                pass
+
+
+@app.post("/api/game/save")
+async def save_game(request: SaveGameRequest):
+    """Save a completed game for sharing"""
+    # Clean up old games if needed
+    cleanup_old_games()
+
+    game_data = {
+        "game_id": request.game_id,
+        "moves": request.moves,
+        "result": request.result,
+        "is_ai_game": request.is_ai_game,
+        "ai_difficulty": request.ai_difficulty,
+        "saved_at": datetime.now().isoformat()
+    }
+    save_game_to_file(request.game_id, game_data)
+
+    return {"success": True, "game_id": request.game_id}
+
+
+@app.get("/api/game/{game_id}")
+async def get_game(game_id: str):
+    """Get a saved game by ID"""
+    # First check saved games on disk
+    saved_game = load_game_from_file(game_id)
+    if saved_game:
+        return saved_game
+
+    # Then check active games in memory
+    if game_id in games:
+        game = games[game_id]
+        return {
+            "game_id": game.game_id,
+            "moves": game.move_history,
+            "result": game.state.value if game.state in (GameState.RED_WIN, GameState.BLACK_WIN, GameState.DRAW) else None,
+            "is_ai_game": False
+        }
+
+    return {"error": "Game not found"}
+
+
+@app.get("/replay/{game_id}")
+async def replay_page(game_id: str):
+    """Serve the replay page"""
+    return FileResponse("static/replay.html")
 
 
 # Serve static files

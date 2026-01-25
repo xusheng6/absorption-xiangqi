@@ -96,6 +96,7 @@
                 <p id="gameOverMessage"></p>
                 <div class="modal-buttons">
                     <button id="rematchBtn" class="btn btn-primary">再来一局</button>
+                    <button id="shareGameBtn" class="btn btn-secondary" style="display: none;">分享棋局</button>
                     <button id="backToLobbyBtn" class="btn">返回大厅</button>
                 </div>
                 <p id="rematchStatus" class="rematch-status"></p>
@@ -106,10 +107,23 @@
         <div id="aiDifficultyModal" class="modal hidden">
             <div class="modal-content">
                 <h2>选择难度</h2>
-                <div class="modal-buttons difficulty-buttons">
-                    <button id="aiEasyBtn" class="btn btn-secondary">简单</button>
-                    <button id="aiMediumBtn" class="btn btn-primary">中等</button>
-                    <button id="aiHardBtn" class="btn btn-danger">困难</button>
+                <div class="difficulty-grid">
+                    <button id="aiEasyBtn" class="btn btn-secondary difficulty-btn">
+                        <span class="diff-name">简单</span>
+                        <span class="diff-info">深度 4 | 2秒</span>
+                    </button>
+                    <button id="aiMediumBtn" class="btn btn-primary difficulty-btn">
+                        <span class="diff-name">中等</span>
+                        <span class="diff-info">深度 5 | 5秒</span>
+                    </button>
+                    <button id="aiHardBtn" class="btn btn-danger difficulty-btn">
+                        <span class="diff-name">困难</span>
+                        <span class="diff-info">深度 6 | 10秒</span>
+                    </button>
+                    <button id="aiExtremeBtn" class="btn btn-extreme difficulty-btn">
+                        <span class="diff-name">极限</span>
+                        <span class="diff-info">深度 8 | 20秒</span>
+                    </button>
                 </div>
                 <button id="cancelAIBtn" class="btn" style="margin-top: 15px;">取消</button>
             </div>

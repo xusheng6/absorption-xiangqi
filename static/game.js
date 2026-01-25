@@ -562,6 +562,8 @@ class GameUI {
         this.aiDifficulty = 'medium';
         this.aiColor = null;
         this.localGameState = null;
+        this.moveHistory = [];  // Track moves for sharing
+        this.currentGameId = null;  // Game ID for sharing
 
         this.setupEventListeners();
         this.setupWebSocketHandlers();
@@ -591,6 +593,10 @@ class GameUI {
 
         document.getElementById('aiHardBtn').addEventListener('click', () => {
             this.startAIGame('hard');
+        });
+
+        document.getElementById('aiExtremeBtn').addEventListener('click', () => {
+            this.startAIGame('extreme');
         });
 
         document.getElementById('cancelAIBtn').addEventListener('click', () => {
@@ -671,9 +677,12 @@ class GameUI {
             document.getElementById('gameOverModal').classList.add('hidden');
             document.getElementById('rematchStatus').textContent = '';
             document.getElementById('rematchBtn').disabled = false;
+            document.getElementById('shareGameBtn').style.display = 'none';
             // Reset AI game state
             this.isAIGame = false;
             this.localGameState = null;
+            this.moveHistory = [];
+            this.currentGameId = null;
             // Show draw button again
             document.getElementById('drawBtn').style.display = '';
             this.showScreen('lobby');
@@ -709,6 +718,7 @@ class GameUI {
 
         gameSocket.on('game_state', (data) => {
             this.playerColor = data.player_color;
+            this.currentGameId = data.game.game_id;  // Track game ID for sharing
             this.board.setGameState(data.game, data.player_color);
 
             if (data.game.state === 'playing') {
@@ -818,6 +828,9 @@ class GameUI {
 
         modal.classList.remove('hidden');
 
+        // Save the game
+        this.saveGame(winner);
+
         if (winner === 'draw' || reason === 'draw') {
             title.textContent = '和棋';
             message.textContent = '双方同意和棋';
@@ -839,6 +852,53 @@ class GameUI {
         }
     }
 
+    async saveGame(result) {
+        // For AI games, use local move history; for online games, get from server
+        const gameId = this.isAIGame ? this.currentGameId : (this.board.gameState?.game_id || this.generateGameId());
+        const moves = this.isAIGame ? this.moveHistory : (this.board.gameState?.move_history || []);
+
+        if (moves.length === 0) return;  // Don't save empty games
+
+        try {
+            const response = await fetch('/api/game/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    game_id: gameId,
+                    moves: moves,
+                    result: result,
+                    is_ai_game: this.isAIGame,
+                    ai_difficulty: this.isAIGame ? this.aiDifficulty : null
+                })
+            });
+            const data = await response.json();
+            if (data.success) {
+                this.currentGameId = gameId;
+                // Show share button
+                const shareBtn = document.getElementById('shareGameBtn');
+                if (shareBtn) {
+                    shareBtn.style.display = '';
+                    shareBtn.onclick = () => this.shareGame();
+                }
+            }
+        } catch (error) {
+            console.error('Failed to save game:', error);
+        }
+    }
+
+    shareGame() {
+        const url = `${window.location.origin}/replay/${this.currentGameId}`;
+        navigator.clipboard.writeText(url).then(() => {
+            const btn = document.getElementById('shareGameBtn');
+            const originalText = btn.textContent;
+            btn.textContent = '已复制!';
+            setTimeout(() => btn.textContent = originalText, 2000);
+        }).catch(() => {
+            // Fallback: show URL in prompt
+            prompt('复制此链接分享棋局:', url);
+        });
+    }
+
     // AI Game Methods
     startAIGame(difficulty) {
         document.getElementById('aiDifficultyModal').classList.add('hidden');
@@ -847,10 +907,11 @@ class GameUI {
         this.aiDifficulty = difficulty;
         this.playerColor = 'red';  // Player always plays red
         this.aiColor = 'black';
+        this.moveHistory = [];  // Reset move history
+        this.currentGameId = this.generateGameId();  // Generate new game ID
 
         // Initialize AI with selected difficulty
-        xiangqiAI.difficulty = difficulty;
-        xiangqiAI.maxDepth = difficulty === 'easy' ? 2 : difficulty === 'medium' ? 3 : 4;
+        xiangqiAI.setDifficulty(difficulty);
 
         // Create initial game state
         this.localGameState = this.createInitialGameState();
@@ -861,6 +922,10 @@ class GameUI {
 
         // Hide draw button for AI games
         document.getElementById('drawBtn').style.display = 'none';
+    }
+
+    generateGameId() {
+        return Math.random().toString(36).substring(2, 10);
     }
 
     createInitialGameState() {
@@ -929,11 +994,14 @@ class GameUI {
         if (pieceIdx === -1) return;
 
         const piece = state.board.pieces[pieceIdx];
+        const movingColor = piece.color;
 
         // Check for capture
         const targetIdx = state.board.pieces.findIndex(p => p.row === toRow && p.col === toCol);
+        let capturedType = null;
         if (targetIdx !== -1) {
             const target = state.board.pieces[targetIdx];
+            capturedType = target.type;
 
             // Absorption: gain target's default type if not already have it
             if (target.type !== piece.type && !piece.abilities.includes(target.type)) {
@@ -948,6 +1016,15 @@ class GameUI {
                 state.state = target.color === 'red' ? 'black_win' : 'red_win';
             }
         }
+
+        // Record move in history
+        this.moveHistory.push({
+            from: [fromRow, fromCol],
+            to: [toRow, toCol],
+            piece: piece.type,
+            color: movingColor,
+            captured: capturedType
+        });
 
         // Move the piece
         piece.row = toRow;
@@ -998,12 +1075,17 @@ class GameUI {
         this.playerColor = this.aiColor;
         this.aiColor = temp;
 
+        // Reset move history and generate new game ID
+        this.moveHistory = [];
+        this.currentGameId = this.generateGameId();
+
         // Create new game
         this.localGameState = this.createInitialGameState();
         this.board.setGameState(this.localGameState, this.playerColor);
 
         document.getElementById('gameOverModal').classList.add('hidden');
         document.getElementById('rematchStatus').textContent = '';
+        document.getElementById('shareGameBtn').style.display = 'none';  // Hide share button
         document.getElementById('gameStatus').textContent = '新一局开始！双方交换颜色！';
 
         // If AI plays red, make first move

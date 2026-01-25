@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>功能棋 - 棋局回放</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>功能棋</h1>
+            <p class="subtitle">棋局回放</p>
+        </header>
+
+        <div id="replay" class="screen">
+            <div class="game-header">
+                <div class="player-info" id="blackInfo">
+                    <span class="player-label">黑方</span>
+                </div>
+                <div class="game-status" id="gameStatus">加载中...</div>
+                <div class="player-info" id="redInfo">
+                    <span class="player-label">红方</span>
+                </div>
+            </div>
+
+            <div class="board-container">
+                <canvas id="boardCanvas" width="540" height="600"></canvas>
+            </div>
+
+            <div class="replay-controls">
+                <button id="firstBtn" class="btn btn-secondary">|&lt;</button>
+                <button id="prevBtn" class="btn btn-secondary">&lt;</button>
+                <span id="moveCounter" class="move-counter">0 / 0</span>
+                <button id="nextBtn" class="btn btn-secondary">&gt;</button>
+                <button id="lastBtn" class="btn btn-secondary">&gt;|</button>
+            </div>
+
+            <div class="replay-controls">
+                <button id="autoPlayBtn" class="btn btn-primary">自动播放</button>
+                <button id="copyLinkBtn" class="btn btn-secondary">复制链接</button>
+                <button id="backBtn" class="btn">返回首页</button>
+            </div>
+
+            <div class="game-info" id="gameInfo"></div>
+        </div>
+
+        <div id="notFound" class="screen hidden">
+            <div class="lobby-content">
+                <h2>棋局未找到</h2>
+                <p>该棋局不存在或已被删除</p>
+                <button id="homeBtn" class="btn btn-primary">返回首页</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/replay.js"></script>
+</body>
+</html>

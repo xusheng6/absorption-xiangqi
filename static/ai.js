@@ -1,12 +1,27 @@
 /**
  * AI opponent for Absorption Xiangqi
- * Uses minimax with alpha-beta pruning
+ * Uses iterative deepening with alpha-beta pruning, transposition tables,
+ * move ordering, and quiescence search
  */
 
 class XiangqiAI {
+    // Difficulty settings: { maxDepth, maxTime (ms) }
+    static DIFFICULTY_SETTINGS = {
+        easy:    { maxDepth: 4, maxTime: 2000 },
+        medium:  { maxDepth: 5, maxTime: 5000 },
+        hard:    { maxDepth: 6, maxTime: 10000 },
+        extreme: { maxDepth: 8, maxTime: 20000 }
+    };
+
     constructor(difficulty = 'medium') {
+        this.setDifficulty(difficulty);
+    }
+
+    setDifficulty(difficulty) {
         this.difficulty = difficulty;
-        this.maxDepth = difficulty === 'easy' ? 2 : difficulty === 'medium' ? 3 : 4;
+        const settings = XiangqiAI.DIFFICULTY_SETTINGS[difficulty] || XiangqiAI.DIFFICULTY_SETTINGS.medium;
+        this.maxDepth = settings.maxDepth;
+        this.maxTime = settings.maxTime;
 
         // Base piece values
         this.pieceValues = {
@@ -21,81 +36,363 @@ class XiangqiAI {
 
         // Bonus for acquired abilities
         this.abilityBonus = {
-            chariot: 300,
-            cannon: 150,
-            horse: 130,
-            elephant: 60,
-            advisor: 60,
-            soldier: 30,
+            chariot: 350,
+            cannon: 180,
+            horse: 160,
+            elephant: 80,
+            advisor: 80,
+            soldier: 40,
             general: 0
         };
+
+        // Transposition table
+        this.transpositionTable = new Map();
+        this.maxTableSize = 100000;
+
+        // Search statistics
+        this.nodesSearched = 0;
+        this.startTime = 0;
+
+        // Killer moves (indexed by depth)
+        this.killerMoves = [];
+
+        // History heuristic table
+        this.historyTable = {};
+
+        // Principal variation tracking
+        this.currentPV = [];
+        this.currentDepth = 0;
+        this.currentScore = 0;
+        this.onThinkingUpdate = null;  // Callback for UI updates
     }
 
-    // Get the best move for the AI
+    // Get the best move for the AI using iterative deepening
     getBestMove(gameState, aiColor) {
-        const startTime = Date.now();
-        const moves = this.getAllMoves(gameState, aiColor);
-
-        if (moves.length === 0) return null;
+        this.startTime = Date.now();
+        this.nodesSearched = 0;
+        this.transpositionTable.clear();
+        this.killerMoves = Array(this.maxDepth + 10).fill(null).map(() => []);
+        this.historyTable = {};
 
         let bestMove = null;
         let bestScore = -Infinity;
-        const alpha = -Infinity;
-        const beta = Infinity;
 
-        // Shuffle moves for variety
-        this.shuffleArray(moves);
+        // Iterative deepening
+        for (let depth = 1; depth <= this.maxDepth; depth++) {
+            const result = this.searchRoot(gameState, depth, aiColor);
+
+            if (result.move) {
+                bestMove = result.move;
+                bestScore = result.score;
+            }
+
+            // Check time limit
+            if (Date.now() - this.startTime > this.maxTime * 0.8) {
+                break;
+            }
+
+            // If we found a winning move, stop searching
+            if (bestScore > 9000) {
+                break;
+            }
+        }
+
+        const elapsed = Date.now() - this.startTime;
+        console.log(`AI: depth=${this.maxDepth}, nodes=${this.nodesSearched}, time=${elapsed}ms, score=${bestScore}`);
+
+        return bestMove;
+    }
+
+    // Root search with move ordering from previous iteration
+    searchRoot(gameState, depth, aiColor) {
+        let moves = this.getAllMoves(gameState, aiColor);
+        if (moves.length === 0) return { move: null, score: -10000, pv: [] };
+
+        // Order moves
+        moves = this.orderMoves(gameState, moves, 0, aiColor);
+
+        let bestMove = moves[0];
+        let bestScore = -Infinity;
+        let bestPV = [];
+        let alpha = -Infinity;
+        const beta = Infinity;
 
         for (const move of moves) {
             const newState = this.applyMove(gameState, move);
-            const score = -this.minimax(newState, this.maxDepth - 1, -beta, -alpha, this.oppositeColor(aiColor));
+            let score;
+            let childPV = [];
+
+            // Principal Variation Search
+            if (bestScore === -Infinity) {
+                const result = this.alphaBetaPV(newState, depth - 1, -beta, -alpha, this.oppositeColor(aiColor), 1);
+                score = -result.score;
+                childPV = result.pv;
+            } else {
+                // Null window search
+                score = -this.alphaBeta(newState, depth - 1, -alpha - 1, -alpha, this.oppositeColor(aiColor), 1);
+                if (score > alpha && score < beta) {
+                    // Re-search with full window
+                    const result = this.alphaBetaPV(newState, depth - 1, -beta, -alpha, this.oppositeColor(aiColor), 1);
+                    score = -result.score;
+                    childPV = result.pv;
+                }
+            }
 
             if (score > bestScore) {
                 bestScore = score;
                 bestMove = move;
+                bestPV = [move, ...childPV];
+
+                // Update thinking display
+                this.currentPV = bestPV;
+                this.currentDepth = depth;
+                this.currentScore = bestScore;
+                if (this.onThinkingUpdate) {
+                    this.onThinkingUpdate({
+                        depth: depth,
+                        score: bestScore,
+                        pv: bestPV,
+                        nodes: this.nodesSearched,
+                        time: Date.now() - this.startTime
+                    });
+                }
             }
+
+            alpha = Math.max(alpha, score);
         }
 
-        console.log(`AI computed move in ${Date.now() - startTime}ms, score: ${bestScore}`);
-        return bestMove;
+        return { move: bestMove, score: bestScore, pv: bestPV };
     }
 
-    // Minimax with alpha-beta pruning
-    minimax(gameState, depth, alpha, beta, currentColor) {
-        if (depth === 0) {
-            return this.evaluate(gameState, currentColor);
+    // Alpha-beta that returns PV (used for PV nodes)
+    alphaBetaPV(gameState, depth, alpha, beta, currentColor, ply) {
+        this.nodesSearched++;
+
+        if (depth <= 0) {
+            return { score: this.quiescence(gameState, alpha, beta, currentColor, 0), pv: [] };
         }
 
-        const moves = this.getAllMoves(gameState, currentColor);
+        let moves = this.getAllMoves(gameState, currentColor);
 
         if (moves.length === 0) {
-            // No moves - either checkmate or stalemate
             if (this.isInCheck(gameState, currentColor)) {
-                return -10000 + (this.maxDepth - depth); // Prefer faster checkmates
+                return { score: -10000 + ply, pv: [] };
+            }
+            return { score: 0, pv: [] };
+        }
+
+        moves = this.orderMoves(gameState, moves, ply, currentColor);
+
+        let bestScore = -Infinity;
+        let bestPV = [];
+
+        for (let i = 0; i < moves.length; i++) {
+            const move = moves[i];
+            const newState = this.applyMove(gameState, move);
+            let score;
+            let childPV = [];
+
+            if (i === 0) {
+                const result = this.alphaBetaPV(newState, depth - 1, -beta, -alpha, this.oppositeColor(currentColor), ply + 1);
+                score = -result.score;
+                childPV = result.pv;
+            } else {
+                score = -this.alphaBeta(newState, depth - 1, -alpha - 1, -alpha, this.oppositeColor(currentColor), ply + 1);
+                if (score > alpha && score < beta) {
+                    const result = this.alphaBetaPV(newState, depth - 1, -beta, -alpha, this.oppositeColor(currentColor), ply + 1);
+                    score = -result.score;
+                    childPV = result.pv;
+                }
+            }
+
+            if (score > bestScore) {
+                bestScore = score;
+                bestPV = [move, ...childPV];
+            }
+
+            alpha = Math.max(alpha, score);
+            if (alpha >= beta) break;
+        }
+
+        return { score: bestScore, pv: bestPV };
+    }
+
+    // Alpha-beta search with transposition table
+    alphaBeta(gameState, depth, alpha, beta, currentColor, ply) {
+        this.nodesSearched++;
+
+        // Check transposition table
+        const hash = this.hashPosition(gameState);
+        const ttEntry = this.transpositionTable.get(hash);
+        if (ttEntry && ttEntry.depth >= depth) {
+            if (ttEntry.flag === 'exact') return ttEntry.score;
+            if (ttEntry.flag === 'lower') alpha = Math.max(alpha, ttEntry.score);
+            if (ttEntry.flag === 'upper') beta = Math.min(beta, ttEntry.score);
+            if (alpha >= beta) return ttEntry.score;
+        }
+
+        // Terminal node or depth limit
+        if (depth <= 0) {
+            return this.quiescence(gameState, alpha, beta, currentColor, 0);
+        }
+
+        let moves = this.getAllMoves(gameState, currentColor);
+
+        if (moves.length === 0) {
+            if (this.isInCheck(gameState, currentColor)) {
+                return -10000 + ply; // Checkmate (prefer faster)
             }
             return 0; // Stalemate
         }
 
+        // Order moves for better pruning
+        moves = this.orderMoves(gameState, moves, ply, currentColor);
+
         let bestScore = -Infinity;
+        let flag = 'upper';
 
-        for (const move of moves) {
+        for (let i = 0; i < moves.length; i++) {
+            const move = moves[i];
             const newState = this.applyMove(gameState, move);
-            const score = -this.minimax(newState, depth - 1, -beta, -alpha, this.oppositeColor(currentColor));
+            let score;
 
-            bestScore = Math.max(bestScore, score);
-            alpha = Math.max(alpha, score);
+            // Late Move Reduction for non-tactical moves
+            if (i >= 4 && depth >= 3 && !move.isCapture && !this.isInCheck(newState, this.oppositeColor(currentColor))) {
+                score = -this.alphaBeta(newState, depth - 2, -alpha - 1, -alpha, this.oppositeColor(currentColor), ply + 1);
+                if (score <= alpha) continue;
+            }
+
+            score = -this.alphaBeta(newState, depth - 1, -beta, -alpha, this.oppositeColor(currentColor), ply + 1);
+
+            if (score > bestScore) {
+                bestScore = score;
+            }
+
+            if (score > alpha) {
+                alpha = score;
+                flag = 'exact';
+
+                // Update history heuristic
+                const moveKey = `${move.from.row},${move.from.col}-${move.to.row},${move.to.col}`;
+                this.historyTable[moveKey] = (this.historyTable[moveKey] || 0) + depth * depth;
+            }
 
             if (alpha >= beta) {
-                break; // Beta cutoff
+                // Update killer moves
+                if (!move.isCapture) {
+                    this.killerMoves[ply].unshift(move);
+                    if (this.killerMoves[ply].length > 2) {
+                        this.killerMoves[ply].pop();
+                    }
+                }
+                flag = 'lower';
+                break;
             }
+        }
+
+        // Store in transposition table
+        if (this.transpositionTable.size < this.maxTableSize) {
+            this.transpositionTable.set(hash, { score: bestScore, depth, flag });
         }
 
         return bestScore;
     }
 
+    // Quiescence search - only search captures to avoid horizon effect
+    quiescence(gameState, alpha, beta, currentColor, qDepth) {
+        this.nodesSearched++;
+
+        const standPat = this.evaluate(gameState, currentColor);
+
+        if (qDepth > 6) return standPat; // Limit quiescence depth
+
+        if (standPat >= beta) return beta;
+        if (standPat > alpha) alpha = standPat;
+
+        // Only search captures
+        let moves = this.getAllMoves(gameState, currentColor);
+        moves = moves.filter(m => m.isCapture);
+
+        // Order captures by MVV-LVA
+        moves.sort((a, b) => {
+            const aValue = this.pieceValues[a.capturedType] - this.pieceValues[a.piece.type] / 10;
+            const bValue = this.pieceValues[b.capturedType] - this.pieceValues[b.piece.type] / 10;
+            return bValue - aValue;
+        });
+
+        for (const move of moves) {
+            const newState = this.applyMove(gameState, move);
+            const score = -this.quiescence(newState, -beta, -alpha, this.oppositeColor(currentColor), qDepth + 1);
+
+            if (score >= beta) return beta;
+            if (score > alpha) alpha = score;
+        }
+
+        return alpha;
+    }
+
+    // Order moves for better alpha-beta pruning
+    orderMoves(gameState, moves, ply, currentColor) {
+        const scored = moves.map(move => {
+            let score = 0;
+
+            // Captures: MVV-LVA (Most Valuable Victim - Least Valuable Attacker)
+            if (move.isCapture) {
+                score += 10000 + this.pieceValues[move.capturedType] * 10 - this.pieceValues[move.piece.type];
+            }
+
+            // Killer moves
+            if (this.killerMoves[ply]) {
+                for (let i = 0; i < this.killerMoves[ply].length; i++) {
+                    const killer = this.killerMoves[ply][i];
+                    if (killer &&
+                        killer.from.row === move.from.row &&
+                        killer.from.col === move.from.col &&
+                        killer.to.row === move.to.row &&
+                        killer.to.col === move.to.col) {
+                        score += 5000 - i * 100;
+                        break;
+                    }
+                }
+            }
+
+            // History heuristic
+            const moveKey = `${move.from.row},${move.from.col}-${move.to.row},${move.to.col}`;
+            score += (this.historyTable[moveKey] || 0);
+
+            // Check if move gives check (bonus)
+            const newState = this.applyMove(gameState, move);
+            if (this.isInCheck(newState, this.oppositeColor(currentColor))) {
+                score += 3000;
+            }
+
+            return { move, score };
+        });
+
+        scored.sort((a, b) => b.score - a.score);
+        return scored.map(s => s.move);
+    }
+
+    // Simple hash for transposition table
+    hashPosition(gameState) {
+        let hash = '';
+        for (const piece of gameState.board.pieces) {
+            hash += `${piece.type[0]}${piece.color[0]}${piece.row}${piece.col}${(piece.abilities || []).join('')}|`;
+        }
+        hash += gameState.current_turn;
+        return hash;
+    }
+
     // Evaluate the board position
     evaluate(gameState, color) {
         let score = 0;
+
+        // Check for checkmate
+        const enemyColor = this.oppositeColor(color);
+        const enemyMoves = this.getAllMoves(gameState, enemyColor);
+        if (enemyMoves.length === 0 && this.isInCheck(gameState, enemyColor)) {
+            return 9999; // We're about to win
+        }
 
         for (const piece of gameState.board.pieces) {
             let pieceValue = this.pieceValues[piece.type];
@@ -108,7 +405,7 @@ class XiangqiAI {
             }
 
             // Positional bonuses
-            pieceValue += this.getPositionalBonus(piece);
+            pieceValue += this.getPositionalBonus(piece, gameState);
 
             if (piece.color === color) {
                 score += pieceValue;
@@ -117,11 +414,42 @@ class XiangqiAI {
             }
         }
 
+        // Mobility bonus (simplified)
+        const myMoves = this.getAllMoves(gameState, color);
+        score += myMoves.length * 5;
+        score -= enemyMoves.length * 5;
+
+        // King safety
+        score += this.evaluateKingSafety(gameState, color);
+
+        return score;
+    }
+
+    // Evaluate king safety
+    evaluateKingSafety(gameState, color) {
+        let score = 0;
+        const king = gameState.board.pieces.find(p => p.type === 'general' && p.color === color);
+        if (!king) return -5000;
+
+        // Count defenders near king
+        const defenders = gameState.board.pieces.filter(p =>
+            p.color === color &&
+            p.type !== 'general' &&
+            Math.abs(p.row - king.row) <= 2 &&
+            Math.abs(p.col - king.col) <= 2
+        );
+        score += defenders.length * 20;
+
+        // Penalty for being in check
+        if (this.isInCheck(gameState, color)) {
+            score -= 50;
+        }
+
         return score;
     }
 
     // Positional bonuses
-    getPositionalBonus(piece) {
+    getPositionalBonus(piece, gameState) {
         let bonus = 0;
         const row = piece.row;
         const col = piece.col;
@@ -131,30 +459,42 @@ class XiangqiAI {
             case 'soldier':
                 // Soldiers are more valuable when advanced
                 if (isRed) {
-                    bonus += (row - 3) * 10;
-                    if (row >= 5) bonus += 20; // Crossed river
+                    bonus += (row - 3) * 15;
+                    if (row >= 5) bonus += 30; // Crossed river
+                    if (row >= 7) bonus += 20; // Deep in enemy territory
                 } else {
-                    bonus += (6 - row) * 10;
-                    if (row <= 4) bonus += 20;
+                    bonus += (6 - row) * 15;
+                    if (row <= 4) bonus += 30;
+                    if (row <= 2) bonus += 20;
                 }
                 // Center soldiers are better
-                if (col >= 3 && col <= 5) bonus += 10;
+                if (col >= 3 && col <= 5) bonus += 15;
                 break;
 
             case 'chariot':
                 // Chariots on open files are better
-                // Central control
-                if (col >= 2 && col <= 6) bonus += 10;
+                if (col >= 2 && col <= 6) bonus += 15;
+                // Chariots on 7th rank (enemy's 2nd) are strong
+                if ((isRed && row >= 7) || (!isRed && row <= 2)) bonus += 25;
                 break;
 
             case 'horse':
                 // Horses in the center are better
-                if (col >= 2 && col <= 6 && row >= 2 && row <= 7) bonus += 15;
+                if (col >= 2 && col <= 6 && row >= 2 && row <= 7) bonus += 20;
+                // Penalty for edge horses
+                if (col === 0 || col === 8) bonus -= 15;
                 break;
 
             case 'cannon':
                 // Cannons on the back rank or central files
-                if (col >= 3 && col <= 5) bonus += 10;
+                if (col >= 3 && col <= 5) bonus += 15;
+                // Cannons are good when there are many pieces to jump over
+                break;
+
+            case 'advisor':
+            case 'elephant':
+                // Slightly prefer central positions for defense
+                if (col === 4) bonus += 10;
                 break;
         }
 
@@ -170,10 +510,13 @@ class XiangqiAI {
 
             const pieceMoves = this.getValidMovesForPiece(gameState, piece);
             for (const [toRow, toCol] of pieceMoves) {
+                const target = this.getPieceAt(gameState, toRow, toCol);
                 moves.push({
                     from: { row: piece.row, col: piece.col },
                     to: { row: toRow, col: toCol },
-                    piece: piece
+                    piece: piece,
+                    isCapture: !!target,
+                    capturedType: target ? target.type : null
                 });
             }
         }
@@ -430,13 +773,6 @@ class XiangqiAI {
 
     oppositeColor(color) {
         return color === 'red' ? 'black' : 'red';
-    }
-
-    shuffleArray(array) {
-        for (let i = array.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [array[i], array[j]] = [array[j], array[i]];
-        }
     }
 }
 
