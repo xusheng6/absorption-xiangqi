@@ -538,6 +538,12 @@ async def replay_page(game_id: str):
     return FileResponse("static/replay.html")
 
 
+@app.get("/join/{room_code}")
+async def join_page(room_code: str):
+    """Serve the main page with room code to auto-join"""
+    return FileResponse("static/index.html")
+
+
 # Serve static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
 

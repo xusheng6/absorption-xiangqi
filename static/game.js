@@ -571,9 +571,23 @@ class GameUI {
         // Connect to server
         gameSocket.connect().then(() => {
             console.log('Connected to server');
+            // Check if URL is a join link
+            this.checkJoinLink();
         }).catch((error) => {
             console.error('Failed to connect:', error);
         });
+    }
+
+    checkJoinLink() {
+        const path = window.location.pathname;
+        const match = path.match(/^\/join\/([A-Z0-9]{4})$/i);
+        if (match) {
+            const roomCode = match[1].toUpperCase();
+            // Auto-join the room
+            gameSocket.joinRoom(roomCode);
+            // Clear the URL to avoid re-joining on refresh
+            window.history.replaceState({}, '', '/');
+        }
     }
 
     setupEventListeners() {
@@ -613,6 +627,7 @@ class GameUI {
             this.showScreen('waiting');
             document.getElementById('waitingMessage').textContent = '正在寻找对手...';
             document.getElementById('roomCodeDisplay').textContent = '';
+            document.getElementById('shareLink').classList.add('hidden');
         });
 
         document.getElementById('joinRoomBtn').addEventListener('click', () => {
@@ -631,7 +646,18 @@ class GameUI {
         // Waiting screen
         document.getElementById('cancelBtn').addEventListener('click', () => {
             gameSocket.cancelMatchmaking();
+            document.getElementById('shareLink').classList.add('hidden');
             this.showScreen('lobby');
+        });
+
+        document.getElementById('copyLinkBtn').addEventListener('click', () => {
+            const input = document.getElementById('shareLinkInput');
+            input.select();
+            navigator.clipboard.writeText(input.value).then(() => {
+                const btn = document.getElementById('copyLinkBtn');
+                btn.textContent = '已复制!';
+                setTimeout(() => btn.textContent = '复制', 2000);
+            });
         });
 
         // Game controls
@@ -696,6 +722,10 @@ class GameUI {
             this.showScreen('waiting');
             document.getElementById('waitingMessage').textContent = '等待对手加入...';
             document.getElementById('roomCodeDisplay').textContent = data.room_code;
+            // Show share link
+            const shareLink = `${window.location.origin}/join/${data.room_code}`;
+            document.getElementById('shareLinkInput').value = shareLink;
+            document.getElementById('shareLink').classList.remove('hidden');
         });
 
         gameSocket.on('room_joined', (data) => {
