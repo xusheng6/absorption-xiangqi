@@ -12,6 +12,9 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
+import mimetypes
+mimetypes.add_type('application/wasm', '.wasm')
+
 from models import Game, GameState, Color
 from game import get_valid_moves, make_move
 import os
