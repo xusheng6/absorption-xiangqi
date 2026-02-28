@@ -32,29 +32,56 @@ self.onmessage = async function(e) {
                 }
             });
 
-            self.postMessage({ type: 'status', message: 'Downloading NNUE file (51MB)...' });
+            self.postMessage({ type: 'status', message: 'Downloading NNUE file...' });
 
-            // Fetch NNUE file and write to MEMFS
+            // Fetch NNUE file with progress tracking
             const nnueResponse = await fetch('/static/pikafish.nnue');
             if (!nnueResponse.ok) {
                 throw new Error('Failed to fetch NNUE file: ' + nnueResponse.status);
             }
 
-            const nnueData = await nnueResponse.arrayBuffer();
-            const nnueArray = new Uint8Array(nnueData);
+            const contentLength = nnueResponse.headers.get('Content-Length');
+            const totalBytes = contentLength ? parseInt(contentLength, 10) : 0;
 
-            self.postMessage({ type: 'status', message: 'Writing NNUE to filesystem...' });
+            let nnueArray;
+            if (totalBytes && nnueResponse.body) {
+                // Stream with progress
+                const reader = nnueResponse.body.getReader();
+                const chunks = [];
+                let receivedBytes = 0;
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    chunks.push(value);
+                    receivedBytes += value.length;
+                    self.postMessage({
+                        type: 'progress',
+                        loaded: receivedBytes,
+                        total: totalBytes
+                    });
+                }
+
+                nnueArray = new Uint8Array(receivedBytes);
+                let offset = 0;
+                for (const chunk of chunks) {
+                    nnueArray.set(chunk, offset);
+                    offset += chunk.length;
+                }
+            } else {
+                // Fallback: no progress tracking
+                const nnueData = await nnueResponse.arrayBuffer();
+                nnueArray = new Uint8Array(nnueData);
+            }
+
+            self.postMessage({ type: 'status', message: 'Initializing engine...' });
             Module.FS.writeFile('/pikafish.nnue', nnueArray);
-
-            self.postMessage({ type: 'status', message: 'Initializing engine (may take a moment)...' });
 
             // Initialize the engine
             Module.ccall('init', null, [], []);
 
             // Set up the processCommand wrapper
             processCommand = Module.cwrap('processCommand', null, ['string']);
-
-            self.postMessage({ type: 'status', message: 'Configuring engine...' });
 
             // Configure engine: single thread, small hash for WASM
             processCommand('setoption name Threads value 1');

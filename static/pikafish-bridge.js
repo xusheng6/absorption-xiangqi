@@ -41,6 +41,8 @@ class PikafishBridge {
                     } else if (msg.type === 'status') {
                         console.log('[PikafishBridge] Status:', msg.message);
                         if (this._onStatus) this._onStatus(msg.message);
+                    } else if (msg.type === 'progress') {
+                        if (this._onProgress) this._onProgress(msg.loaded, msg.total);
                     } else if (msg.type === 'uci') {
                         this._handleUCIOutput(msg.data);
                     }
@@ -71,6 +73,14 @@ class PikafishBridge {
      */
     onStatus(callback) {
         this._onStatus = callback;
+    }
+
+    /**
+     * Set a callback for download progress during initialization.
+     * @param {function(loaded: number, total: number)} callback
+     */
+    onProgress(callback) {
+        this._onProgress = callback;
     }
 
     /**

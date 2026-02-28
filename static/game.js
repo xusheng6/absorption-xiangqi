@@ -1129,16 +1129,25 @@ class GameUI {
 
         // Lazily initialize Pikafish WASM engine
         if (!this.pikafishBridge.ready) {
-            document.getElementById('gameStatus').textContent = '正在加载 Pikafish 引擎...';
+            const statusEl = document.getElementById('gameStatus');
+            statusEl.innerHTML = '正在加载 Pikafish 引擎...';
             this.pikafishBridge.onStatus((msg) => {
-                document.getElementById('gameStatus').textContent = msg;
+                statusEl.innerHTML = msg;
+            });
+            this.pikafishBridge.onProgress((loaded, total) => {
+                const pct = Math.round(loaded / total * 100);
+                const loadedMB = (loaded / 1048576).toFixed(1);
+                const totalMB = (total / 1048576).toFixed(1);
+                statusEl.innerHTML = `下载 NNUE (${loadedMB}/${totalMB} MB)`
+                    + `<div style="width:200px;height:8px;background:#333;border-radius:4px;margin:6px auto 0">`
+                    + `<div style="width:${pct}%;height:100%;background:#e94560;border-radius:4px;transition:width 0.2s"></div></div>`;
             });
             try {
                 await this.pikafishBridge.init();
                 console.log('Pikafish WASM engine ready');
             } catch (error) {
                 console.error('Pikafish WASM init failed:', error);
-                document.getElementById('gameStatus').textContent = 'Pikafish 加载失败，使用 JS AI';
+                statusEl.textContent = 'Pikafish 加载失败，使用 JS AI';
                 this.usePikafish = false;
             }
         }
