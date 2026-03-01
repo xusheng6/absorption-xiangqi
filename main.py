@@ -3,13 +3,14 @@ FastAPI backend for Absorption Xiangqi (功能棋)
 """
 
 import asyncio
+import hashlib
 import json
 import random
 import string
 from typing import Dict, List, Optional
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
 import mimetypes
@@ -30,6 +31,14 @@ except Exception as e:
 
 
 app = FastAPI(title="Absorption Xiangqi 功能棋")
+
+# Compute NNUE file hash at startup for client-side caching
+NNUE_FILE_PATH = os.path.join("static", "pikafish.nnue")
+NNUE_FILE_HASH = ""
+if os.path.exists(NNUE_FILE_PATH):
+    with open(NNUE_FILE_PATH, "rb") as f:
+        NNUE_FILE_HASH = hashlib.sha256(f.read()).hexdigest()
+    print(f"NNUE file hash: {NNUE_FILE_HASH[:16]}...")
 
 # In-memory storage
 games: Dict[str, Game] = {}
@@ -560,6 +569,12 @@ async def join_page(room_code: str):
 class PikafishMoveRequest(BaseModel):
     move_history: list
     difficulty: str = "pikafish_medium"
+
+
+@app.get("/api/nnue-hash")
+async def nnue_hash():
+    """Return the SHA-256 hash of the NNUE file for client-side cache validation"""
+    return JSONResponse({"hash": NNUE_FILE_HASH})
 
 
 @app.get("/api/pikafish/status")
