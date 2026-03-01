@@ -47,6 +47,14 @@ class ReplayViewer {
         document.getElementById('copyLinkBtn').addEventListener('click', () => this.copyLink());
         document.getElementById('backBtn').addEventListener('click', () => window.location.href = '/');
         document.getElementById('homeBtn').addEventListener('click', () => window.location.href = '/');
+        document.getElementById('copyFenBtn').addEventListener('click', () => {
+            const fenInput = document.getElementById('fenString');
+            navigator.clipboard.writeText(fenInput.value).then(() => {
+                const btn = document.getElementById('copyFenBtn');
+                btn.textContent = '已复制!';
+                setTimeout(() => btn.textContent = '复制', 2000);
+            });
+        });
 
         // Keyboard controls
         document.addEventListener('keydown', (e) => {
@@ -156,6 +164,7 @@ class ReplayViewer {
         this.currentMoveIndex = Math.max(-1, Math.min(index, this.moves.length - 1));
         this.draw();
         this.updateMoveCounter();
+        this.updateFEN();
     }
 
     prevMove() {
@@ -339,6 +348,61 @@ class ReplayViewer {
             this.cellSize,
             this.cellSize
         );
+    }
+
+    generateFEN(pieces, moveIndex) {
+        const TYPE_TO_FEN = {
+            chariot: 'R', horse: 'N', elephant: 'B', advisor: 'A',
+            general: 'K', cannon: 'C', soldier: 'P'
+        };
+        const ABILITY_TO_CHAR = {
+            chariot: 'r', horse: 'n', elephant: 'b', advisor: 'a',
+            cannon: 'c', soldier: 'p'
+        };
+
+        // Build board grid (row 9 = top of FEN, row 0 = bottom)
+        const rows = [];
+        for (let row = 9; row >= 0; row--) {
+            let rowStr = '';
+            let emptyCount = 0;
+            for (let col = 0; col < 9; col++) {
+                const piece = pieces.find(p => p.row === row && p.col === col);
+                if (piece) {
+                    if (emptyCount > 0) {
+                        rowStr += emptyCount;
+                        emptyCount = 0;
+                    }
+                    let ch = TYPE_TO_FEN[piece.type] || 'P';
+                    if (piece.color === 'black') ch = ch.toLowerCase();
+                    rowStr += ch;
+                    // Absorption abilities
+                    if (piece.abilities && piece.abilities.length > 0) {
+                        const abilityChars = piece.abilities
+                            .map(a => ABILITY_TO_CHAR[a])
+                            .filter(Boolean)
+                            .sort()
+                            .join('');
+                        if (abilityChars) rowStr += '(' + abilityChars + ')';
+                    }
+                } else {
+                    emptyCount++;
+                }
+            }
+            if (emptyCount > 0) rowStr += emptyCount;
+            rows.push(rowStr);
+        }
+
+        // Side to move: red moves first (index -1 = before move 0), then alternates
+        const sideToMove = (moveIndex + 1) % 2 === 0 ? 'w' : 'b';
+        const moveNum = Math.floor((moveIndex + 2) / 2);
+
+        return rows.join('/') + ' ' + sideToMove + ' - - 0 ' + moveNum;
+    }
+
+    updateFEN() {
+        const pieces = this.boardStates[this.currentMoveIndex + 1] || [];
+        const fen = this.generateFEN(pieces, this.currentMoveIndex);
+        document.getElementById('fenString').value = fen;
     }
 
     drawPiece(piece) {
