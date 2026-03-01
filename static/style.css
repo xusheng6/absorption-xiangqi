@@ -431,6 +431,145 @@ header h1 {
     margin-top: 5px;
 }
 
+/* FEN setup in AI modal */
+.fen-setup {
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+.fen-setup-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+.fen-setup-row input {
+    flex: 1;
+    padding: 8px 12px;
+    font-size: 12px;
+    font-family: monospace;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.05);
+    color: #ccc;
+}
+.fen-setup-row input:focus {
+    outline: none;
+    border-color: #e94560;
+}
+.fen-error {
+    color: #ef4444;
+    font-size: 0.8em;
+    margin-top: 6px;
+    text-align: left;
+}
+
+/* Position Editor */
+.editor-layout {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 20px;
+    max-width: 900px;
+    margin: 0 auto;
+}
+.editor-board-area canvas {
+    border-radius: 8px;
+}
+.editor-panel {
+    min-width: 240px;
+    max-width: 280px;
+}
+.editor-title {
+    color: #e94560;
+    margin-bottom: 15px;
+    font-size: 1.3em;
+}
+.editor-section {
+    margin-bottom: 15px;
+}
+.editor-label {
+    color: #aaa;
+    font-size: 0.85em;
+    margin-bottom: 6px;
+}
+.palette-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 6px;
+}
+.palette-piece {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: 2px solid #555;
+    background: #2a2a3e;
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: border-color 0.15s;
+}
+.palette-piece.red { color: #c00; }
+.palette-piece.black { color: #ddd; }
+.palette-piece.eraser { color: #888; font-size: 14px; border-radius: 6px; width: 34px; }
+.palette-piece:hover { border-color: #e94560; }
+.palette-piece.selected { border-color: #e94560; background: #3a2a4e; box-shadow: 0 0 8px rgba(233,69,96,0.5); }
+.ability-checkboxes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 12px;
+}
+.ability-checkboxes label {
+    font-size: 0.9em;
+    color: #ccc;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.editor-settings {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.editor-settings label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #ccc;
+    font-size: 0.9em;
+}
+.editor-settings select, .editor-section > select {
+    background: #1a1a2e;
+    color: #ccc;
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 0.9em;
+    flex: 1;
+    width: 100%;
+}
+.editor-section > select { margin-top: 4px; }
+.editor-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 20px;
+}
+.editor-actions .btn { flex: 1; min-width: 80px; }
+.editor-actions .btn-primary { flex-basis: 100%; }
+@media (max-width: 700px) {
+    .editor-layout {
+        flex-direction: column;
+        align-items: center;
+        padding: 10px;
+    }
+    .editor-panel { max-width: 100%; min-width: auto; width: 100%; }
+}
+
 /* Replay controls */
 .replay-controls {
     display: flex;

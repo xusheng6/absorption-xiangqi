@@ -682,6 +682,310 @@ class GameBoard {
     }
 }
 
+// Position Editor
+class PositionEditor {
+    constructor() {
+        this.canvas = document.getElementById('editorCanvas');
+        this.ctx = this.canvas.getContext('2d');
+        this.cellSize = 60;
+        this.padding = 30;
+        this.pieceRadius = 25;
+        this.pieces = [];
+        this.selectedTool = { type: 'eraser' }; // {type, color} or {type:'eraser'}
+        this.selectedPiece = null; // piece being edited for abilities
+
+        this.canvas.addEventListener('click', (e) => this.handleCanvasClick(e));
+        this.setupControls();
+        this.resetToInitial();
+    }
+
+    setupControls() {
+        // Palette buttons
+        document.querySelectorAll('.palette-piece').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.palette-piece').forEach(b => b.classList.remove('selected'));
+                btn.classList.add('selected');
+                const type = btn.dataset.type;
+                if (type === 'eraser') {
+                    this.selectedTool = { type: 'eraser' };
+                } else {
+                    this.selectedTool = { type, color: btn.dataset.color };
+                }
+                this.selectedPiece = null;
+                document.getElementById('abilitySection').style.display = 'none';
+            });
+        });
+
+        // Ability checkboxes
+        document.querySelectorAll('#abilityCheckboxes input').forEach(cb => {
+            cb.addEventListener('change', () => {
+                if (!this.selectedPiece) return;
+                const ability = cb.dataset.ability;
+                if (cb.checked) {
+                    if (!this.selectedPiece.abilities.includes(ability))
+                        this.selectedPiece.abilities.push(ability);
+                } else {
+                    this.selectedPiece.abilities = this.selectedPiece.abilities.filter(a => a !== ability);
+                }
+                this.draw();
+            });
+        });
+
+        document.getElementById('editorResetBtn').addEventListener('click', () => {
+            this.resetToInitial();
+        });
+        document.getElementById('editorClearBtn').addEventListener('click', () => {
+            this.pieces = [];
+            this.selectedPiece = null;
+            document.getElementById('abilitySection').style.display = 'none';
+            this.draw();
+        });
+        document.getElementById('editorCancelBtn').addEventListener('click', () => {
+            this.hide();
+        });
+        document.getElementById('editorStartBtn').addEventListener('click', () => {
+            this.startGame();
+        });
+    }
+
+    show() {
+        document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
+        document.getElementById('editor').classList.remove('hidden');
+        this.draw();
+    }
+
+    hide() {
+        document.getElementById('editor').classList.add('hidden');
+        document.getElementById('lobby').classList.remove('hidden');
+    }
+
+    resetToInitial() {
+        this.pieces = [];
+        const backRow = ['chariot','horse','elephant','advisor','general','advisor','elephant','horse','chariot'];
+        for (let col = 0; col < 9; col++) {
+            this.pieces.push({ type: backRow[col], color: 'red', row: 0, col, abilities: [] });
+            this.pieces.push({ type: backRow[col], color: 'black', row: 9, col, abilities: [] });
+        }
+        this.pieces.push({ type: 'cannon', color: 'red', row: 2, col: 1, abilities: [] });
+        this.pieces.push({ type: 'cannon', color: 'red', row: 2, col: 7, abilities: [] });
+        this.pieces.push({ type: 'cannon', color: 'black', row: 7, col: 1, abilities: [] });
+        this.pieces.push({ type: 'cannon', color: 'black', row: 7, col: 7, abilities: [] });
+        for (let col = 0; col < 9; col += 2) {
+            this.pieces.push({ type: 'soldier', color: 'red', row: 3, col, abilities: [] });
+            this.pieces.push({ type: 'soldier', color: 'black', row: 6, col, abilities: [] });
+        }
+        this.selectedPiece = null;
+        document.getElementById('abilitySection').style.display = 'none';
+        this.draw();
+    }
+
+    boardToCanvas(row, col) {
+        // Red at bottom (row 0 at bottom)
+        return {
+            x: this.padding + col * this.cellSize,
+            y: this.padding + (9 - row) * this.cellSize
+        };
+    }
+
+    canvasToBoard(cx, cy) {
+        const col = Math.round((cx - this.padding) / this.cellSize);
+        const row = 9 - Math.round((cy - this.padding) / this.cellSize);
+        return { row, col };
+    }
+
+    getPieceAt(row, col) {
+        return this.pieces.find(p => p.row === row && p.col === col);
+    }
+
+    handleCanvasClick(event) {
+        const rect = this.canvas.getBoundingClientRect();
+        const scaleX = this.canvas.width / rect.width;
+        const scaleY = this.canvas.height / rect.height;
+        const cx = (event.clientX - rect.left) * scaleX;
+        const cy = (event.clientY - rect.top) * scaleY;
+        const { row, col } = this.canvasToBoard(cx, cy);
+        if (row < 0 || row > 9 || col < 0 || col > 8) return;
+
+        const existing = this.getPieceAt(row, col);
+
+        if (this.selectedTool.type === 'eraser') {
+            if (existing) {
+                this.pieces = this.pieces.filter(p => p !== existing);
+                if (this.selectedPiece === existing) {
+                    this.selectedPiece = null;
+                    document.getElementById('abilitySection').style.display = 'none';
+                }
+            }
+        } else {
+            // If clicking an existing piece of same type/color, select it for ability editing
+            if (existing && existing.type === this.selectedTool.type && existing.color === this.selectedTool.color) {
+                this.selectPieceForAbilities(existing);
+                this.draw();
+                return;
+            }
+            // Remove any existing piece at this position
+            this.pieces = this.pieces.filter(p => !(p.row === row && p.col === col));
+            // Place new piece
+            const newPiece = {
+                type: this.selectedTool.type,
+                color: this.selectedTool.color,
+                row, col,
+                abilities: []
+            };
+            this.pieces.push(newPiece);
+            this.selectPieceForAbilities(newPiece);
+        }
+        this.draw();
+    }
+
+    selectPieceForAbilities(piece) {
+        this.selectedPiece = piece;
+        const section = document.getElementById('abilitySection');
+        section.style.display = '';
+        const pieceName = PIECE_NAMES[piece.color][piece.type];
+        document.getElementById('abilityPieceName').textContent = pieceName;
+
+        // Update checkboxes — hide the ability matching the piece's own type
+        document.querySelectorAll('#abilityCheckboxes input').forEach(cb => {
+            const ability = cb.dataset.ability;
+            cb.parentElement.style.display = (ability === piece.type) ? 'none' : '';
+            cb.checked = piece.abilities.includes(ability);
+        });
+    }
+
+    draw() {
+        const ctx = this.ctx;
+        const w = this.canvas.width, h = this.canvas.height;
+
+        ctx.fillStyle = '#deb887';
+        ctx.fillRect(0, 0, w, h);
+
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 1;
+
+        // Horizontal lines
+        for (let r = 0; r <= 9; r++) {
+            const y = this.padding + r * this.cellSize;
+            ctx.beginPath();
+            ctx.moveTo(this.padding, y);
+            ctx.lineTo(this.padding + 8 * this.cellSize, y);
+            ctx.stroke();
+        }
+        // Vertical lines with river gap
+        for (let c = 0; c <= 8; c++) {
+            const x = this.padding + c * this.cellSize;
+            ctx.beginPath();
+            ctx.moveTo(x, this.padding);
+            ctx.lineTo(x, this.padding + 4 * this.cellSize);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(x, this.padding + 5 * this.cellSize);
+            ctx.lineTo(x, this.padding + 9 * this.cellSize);
+            ctx.stroke();
+        }
+
+        // Palace diagonals
+        for (const startRow of [0, 7]) {
+            const y1 = this.padding + (9 - startRow - 2) * this.cellSize;
+            const y2 = this.padding + (9 - startRow) * this.cellSize;
+            const x1 = this.padding + 3 * this.cellSize;
+            const x2 = this.padding + 5 * this.cellSize;
+            ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(x2, y1); ctx.lineTo(x1, y2); ctx.stroke();
+        }
+
+        // River text
+        const riverY = this.padding + 4.5 * this.cellSize;
+        ctx.font = '24px serif'; ctx.fillStyle = '#000';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('楚 河', this.padding + 2 * this.cellSize, riverY);
+        ctx.fillText('漢 界', this.padding + 6 * this.cellSize, riverY);
+
+        // Draw pieces
+        for (const piece of this.pieces) {
+            this.drawPiece(piece);
+        }
+    }
+
+    drawPiece(piece) {
+        const ctx = this.ctx;
+        const pos = this.boardToCanvas(piece.row, piece.col);
+        const isSelected = this.selectedPiece === piece;
+
+        if (isSelected) {
+            ctx.strokeStyle = '#fbbf24';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.arc(pos.x, pos.y, this.pieceRadius + 4, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+
+        const gradient = ctx.createRadialGradient(pos.x - 5, pos.y - 5, 0, pos.x, pos.y, this.pieceRadius);
+        gradient.addColorStop(0, '#fff');
+        gradient.addColorStop(1, '#ddd');
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, this.pieceRadius, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.strokeStyle = piece.color === 'red' ? '#c00' : '#000';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        ctx.font = 'bold 28px serif';
+        ctx.fillStyle = piece.color === 'red' ? '#c00' : '#000';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(PIECE_NAMES[piece.color][piece.type], pos.x, pos.y);
+
+        if (piece.abilities && piece.abilities.length > 0) {
+            ctx.font = 'bold 11px serif';
+            const abilityText = piece.abilities.map(a => ABILITY_SHORT_NAMES[a]).join('');
+            const textWidth = ctx.measureText(abilityText).width;
+            const textX = pos.x + this.pieceRadius - textWidth/2 - 2;
+            const textY = pos.y - this.pieceRadius + 6;
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+            ctx.fillRect(textX - 2, textY - 8, textWidth + 4, 12);
+            ctx.fillStyle = '#059669';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(abilityText, pos.x + this.pieceRadius - 4, textY - 2);
+        }
+    }
+
+    toGameState() {
+        const sideToMove = document.getElementById('editorSideToMove').value;
+        return {
+            board: { pieces: this.pieces.map(p => ({ ...p, abilities: [...p.abilities] })) },
+            current_turn: sideToMove,
+            state: 'playing'
+        };
+    }
+
+    startGame() {
+        const gameState = this.toGameState();
+        const playerColor = document.getElementById('editorPlayerColor').value;
+        const difficulty = document.getElementById('editorDifficulty').value;
+        const isPikafish = difficulty.startsWith('pikafish_');
+
+        // Generate FEN and pass to the game
+        const fen = PikafishBridge.gameStateToFEN(gameState, []);
+        document.getElementById('fenInput').value = fen;
+        document.getElementById('editor').classList.add('hidden');
+        document.getElementById('aiDifficultyModal').classList.add('hidden');
+
+        if (isPikafish) {
+            window.gameUI.playerColor = playerColor;
+            window.gameUI.aiColor = playerColor === 'red' ? 'black' : 'red';
+            window.gameUI.startPikafishGameFromEditor(gameState, playerColor, difficulty);
+        } else {
+            window.gameUI.playerColor = playerColor;
+            window.gameUI.aiColor = playerColor === 'red' ? 'black' : 'red';
+            window.gameUI.startAIGameFromEditor(gameState, playerColor, difficulty);
+        }
+    }
+}
+
 // UI Controller
 class GameUI {
     constructor() {
@@ -730,6 +1034,7 @@ class GameUI {
     setupEventListeners() {
         // AI button
         document.getElementById('playAIBtn').addEventListener('click', () => {
+            document.getElementById('fenError').classList.add('hidden');
             document.getElementById('aiDifficultyModal').classList.remove('hidden');
         });
 
@@ -769,6 +1074,22 @@ class GameUI {
 
         document.getElementById('pikafishExtremeBtn').addEventListener('click', () => {
             this.startPikafishGame('pikafish_extreme');
+        });
+
+        // FEN setup controls
+        document.getElementById('clearFenBtn').addEventListener('click', () => {
+            document.getElementById('fenInput').value = '';
+            document.getElementById('fenError').classList.add('hidden');
+        });
+        document.getElementById('fenInput').addEventListener('input', () => {
+            document.getElementById('fenError').classList.add('hidden');
+        });
+        document.getElementById('openEditorBtn').addEventListener('click', () => {
+            document.getElementById('aiDifficultyModal').classList.add('hidden');
+            if (!this.positionEditor) {
+                this.positionEditor = new PositionEditor();
+            }
+            this.positionEditor.show();
         });
 
         // Lobby buttons
@@ -1103,43 +1424,66 @@ class GameUI {
 
     // AI Game Methods
     startAIGame(difficulty) {
+        const customFEN = this.getCustomFEN();
+        if (customFEN) {
+            try { this.parseFEN(customFEN); }
+            catch (e) {
+                document.getElementById('fenError').textContent = e.message;
+                document.getElementById('fenError').classList.remove('hidden');
+                return;
+            }
+        }
         document.getElementById('aiDifficultyModal').classList.add('hidden');
 
         this.isAIGame = true;
         this.usePikafish = false;  // Use JavaScript AI
         this.aiDifficulty = difficulty;
-        this.playerColor = 'red';  // Player always plays red
-        this.aiColor = 'black';
         this.moveHistory = [];  // Reset move history
         this.currentGameId = this.generateGameId();  // Generate new game ID
 
         // Initialize AI with selected difficulty
         xiangqiAI.setDifficulty(difficulty);
 
-        // Create initial game state
-        this.localGameState = this.createInitialGameState();
+        // Create game state from FEN or initial position
+        this.localGameState = customFEN ? this.parseFEN(customFEN) : this.createInitialGameState();
+        this.playerColor = 'red';
+        this.aiColor = 'black';
         this.board.setGameState(this.localGameState, this.playerColor);
 
         this.showScreen('game');
-        this.updateGameStatus({ current_turn: 'red' });
+        this.updateGameStatus(this.localGameState);
 
         // Hide draw button for AI games
         document.getElementById('drawBtn').style.display = 'none';
+
+        // If it's AI's turn, make AI move
+        if (this.localGameState.current_turn === this.aiColor) {
+            this.makeAIMove();
+        }
     }
 
     async startPikafishGame(difficulty) {
+        const customFEN = this.getCustomFEN();
+        if (customFEN) {
+            try { this.parseFEN(customFEN); }
+            catch (e) {
+                document.getElementById('fenError').textContent = e.message;
+                document.getElementById('fenError').classList.remove('hidden');
+                return;
+            }
+        }
         document.getElementById('aiDifficultyModal').classList.add('hidden');
 
         this.isAIGame = true;
         this.usePikafish = true;  // Use Pikafish engine
         this.aiDifficulty = difficulty;
-        this.playerColor = 'red';  // Player always plays red
-        this.aiColor = 'black';
         this.moveHistory = [];  // Reset move history
         this.currentGameId = this.generateGameId();  // Generate new game ID
 
-        // Create initial game state
-        this.localGameState = this.createInitialGameState();
+        // Create game state from FEN or initial position
+        this.localGameState = customFEN ? this.parseFEN(customFEN) : this.createInitialGameState();
+        this.playerColor = 'red';
+        this.aiColor = 'black';
         this.board.setGameState(this.localGameState, this.playerColor);
 
         this.showScreen('game');
@@ -1172,7 +1516,74 @@ class GameUI {
             }
         }
 
-        this.updateGameStatus({ current_turn: 'red' });
+        this.updateGameStatus(this.localGameState);
+
+        // If it's AI's turn, make AI move
+        if (this.localGameState.current_turn === this.aiColor) {
+            this.makeAIMove();
+        }
+    }
+
+    startAIGameFromEditor(gameState, playerColor, difficulty) {
+        this.isAIGame = true;
+        this.usePikafish = false;
+        this.aiDifficulty = difficulty;
+        this.playerColor = playerColor;
+        this.aiColor = playerColor === 'red' ? 'black' : 'red';
+        this.moveHistory = [];
+        this.currentGameId = this.generateGameId();
+
+        xiangqiAI.setDifficulty(difficulty);
+        this.localGameState = gameState;
+        this.board.setGameState(this.localGameState, this.playerColor);
+        this.showScreen('game');
+        this.updateGameStatus(this.localGameState);
+        document.getElementById('drawBtn').style.display = 'none';
+
+        if (this.localGameState.current_turn === this.aiColor) {
+            this.makeAIMove();
+        }
+    }
+
+    async startPikafishGameFromEditor(gameState, playerColor, difficulty) {
+        this.isAIGame = true;
+        this.usePikafish = true;
+        this.aiDifficulty = difficulty;
+        this.playerColor = playerColor;
+        this.aiColor = playerColor === 'red' ? 'black' : 'red';
+        this.moveHistory = [];
+        this.currentGameId = this.generateGameId();
+
+        this.localGameState = gameState;
+        this.board.setGameState(this.localGameState, this.playerColor);
+        this.showScreen('game');
+        document.getElementById('drawBtn').style.display = 'none';
+
+        if (!this.pikafishBridge.ready) {
+            const statusEl = document.getElementById('gameStatus');
+            statusEl.innerHTML = '正在加载 Pikafish 引擎...';
+            this.pikafishBridge.onStatus((msg) => { statusEl.innerHTML = msg; });
+            this.pikafishBridge.onProgress((loaded, total) => {
+                const pct = Math.round(loaded / total * 100);
+                const loadedMB = (loaded / 1048576).toFixed(1);
+                const totalMB = (total / 1048576).toFixed(1);
+                statusEl.innerHTML = `下载 NNUE (${loadedMB}/${totalMB} MB)`
+                    + `<div style="width:200px;height:8px;background:#333;border-radius:4px;margin:6px auto 0">`
+                    + `<div style="width:${pct}%;height:100%;background:#e94560;border-radius:4px;transition:width 0.2s"></div></div>`;
+            });
+            try {
+                await this.pikafishBridge.init();
+            } catch (error) {
+                console.error('Pikafish WASM init failed:', error);
+                statusEl.textContent = 'Pikafish 加载失败，使用 JS AI';
+                this.usePikafish = false;
+            }
+        }
+
+        this.updateGameStatus(this.localGameState);
+        if (this.localGameState.current_turn === this.aiColor) {
+            this.makeAIMove();
+        }
     }
 
     generateGameId() {
@@ -1215,6 +1626,77 @@ class GameUI {
             current_turn: 'red',
             state: 'playing'
         };
+    }
+
+    parseFEN(fen) {
+        const charToType = {
+            'R': 'chariot', 'N': 'horse', 'B': 'elephant', 'A': 'advisor',
+            'K': 'general', 'C': 'cannon', 'P': 'soldier',
+            'r': 'chariot', 'n': 'horse', 'b': 'elephant', 'a': 'advisor',
+            'k': 'general', 'c': 'cannon', 'p': 'soldier'
+        };
+        const abilityCharToType = {
+            'r': 'chariot', 'a': 'advisor', 'c': 'cannon',
+            'p': 'soldier', 'n': 'horse', 'b': 'elephant'
+        };
+
+        const parts = fen.trim().split(/\s+/);
+        if (parts.length < 2) throw new Error('FEN 格式无效：至少需要棋盘和行棋方');
+
+        const ranks = parts[0].split('/');
+        if (ranks.length !== 10) throw new Error('FEN 格式无效：需要10行');
+
+        const side = parts[1];
+        if (side !== 'w' && side !== 'b') throw new Error('FEN 格式无效：行棋方必须是 w 或 b');
+
+        const pieces = [];
+        for (let rankIdx = 0; rankIdx < 10; rankIdx++) {
+            const row = 9 - rankIdx; // FEN rank 0 (first) = row 9 (top)
+            let col = 0;
+            let i = 0;
+            const rankStr = ranks[rankIdx];
+
+            while (i < rankStr.length && col <= 8) {
+                const ch = rankStr[i];
+                if (ch >= '1' && ch <= '9') {
+                    col += parseInt(ch);
+                    i++;
+                } else if (charToType[ch]) {
+                    const type = charToType[ch];
+                    const color = ch === ch.toUpperCase() ? 'red' : 'black';
+                    let abilities = [];
+
+                    // Check for absorption markers: e.g., R(ap)
+                    if (i + 1 < rankStr.length && rankStr[i + 1] === '(') {
+                        i += 2; // skip piece char and '('
+                        while (i < rankStr.length && rankStr[i] !== ')') {
+                            const aType = abilityCharToType[rankStr[i]];
+                            if (aType) abilities.push(aType);
+                            i++;
+                        }
+                        i++; // skip ')'
+                    } else {
+                        i++;
+                    }
+
+                    pieces.push({ type, color, row, col, abilities });
+                    col++;
+                } else {
+                    i++; // skip unknown chars
+                }
+            }
+        }
+
+        return {
+            board: { pieces },
+            current_turn: side === 'w' ? 'red' : 'black',
+            state: 'playing'
+        };
+    }
+
+    getCustomFEN() {
+        const input = document.getElementById('fenInput');
+        return input && input.value.trim() ? input.value.trim() : null;
     }
 
     makeAIMove() {

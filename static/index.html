@@ -116,6 +116,90 @@
 
         </div>
 
+        <!-- Position Editor Screen -->
+        <div id="editor" class="screen hidden">
+            <div class="editor-layout">
+                <div class="editor-board-area">
+                    <canvas id="editorCanvas" width="540" height="630"></canvas>
+                </div>
+                <div class="editor-panel">
+                    <h2 class="editor-title">编辑局面</h2>
+
+                    <div class="editor-section">
+                        <p class="editor-label">红方棋子</p>
+                        <div class="palette-row">
+                            <button class="palette-piece red" data-type="general" data-color="red">帥</button>
+                            <button class="palette-piece red" data-type="advisor" data-color="red">仕</button>
+                            <button class="palette-piece red" data-type="elephant" data-color="red">相</button>
+                            <button class="palette-piece red" data-type="horse" data-color="red">傌</button>
+                            <button class="palette-piece red" data-type="chariot" data-color="red">俥</button>
+                            <button class="palette-piece red" data-type="cannon" data-color="red">炮</button>
+                            <button class="palette-piece red" data-type="soldier" data-color="red">兵</button>
+                        </div>
+                        <p class="editor-label">黑方棋子</p>
+                        <div class="palette-row">
+                            <button class="palette-piece black" data-type="general" data-color="black">將</button>
+                            <button class="palette-piece black" data-type="advisor" data-color="black">士</button>
+                            <button class="palette-piece black" data-type="elephant" data-color="black">象</button>
+                            <button class="palette-piece black" data-type="horse" data-color="black">馬</button>
+                            <button class="palette-piece black" data-type="chariot" data-color="black">車</button>
+                            <button class="palette-piece black" data-type="cannon" data-color="black">砲</button>
+                            <button class="palette-piece black" data-type="soldier" data-color="black">卒</button>
+                        </div>
+                        <div class="palette-row">
+                            <button class="palette-piece eraser selected" data-type="eraser">✕</button>
+                        </div>
+                    </div>
+
+                    <div class="editor-section" id="abilitySection" style="display:none">
+                        <p class="editor-label">额外能力 (<span id="abilityPieceName"></span>)</p>
+                        <div class="ability-checkboxes" id="abilityCheckboxes">
+                            <label><input type="checkbox" data-ability="chariot"> 車</label>
+                            <label><input type="checkbox" data-ability="horse"> 馬</label>
+                            <label><input type="checkbox" data-ability="elephant"> 象</label>
+                            <label><input type="checkbox" data-ability="advisor"> 士</label>
+                            <label><input type="checkbox" data-ability="cannon"> 炮</label>
+                            <label><input type="checkbox" data-ability="soldier"> 兵</label>
+                        </div>
+                    </div>
+
+                    <div class="editor-section">
+                        <p class="editor-label">设置</p>
+                        <div class="editor-settings">
+                            <label>先手 <select id="editorSideToMove">
+                                <option value="red">红方</option>
+                                <option value="black">黑方</option>
+                            </select></label>
+                            <label>玩家 <select id="editorPlayerColor">
+                                <option value="red">红方</option>
+                                <option value="black">黑方</option>
+                            </select></label>
+                        </div>
+                    </div>
+
+                    <div class="editor-section">
+                        <p class="editor-label">难度</p>
+                        <select id="editorDifficulty">
+                            <option value="pikafish_easy">Pikafish 简单 (深度 8)</option>
+                            <option value="pikafish_medium" selected>Pikafish 中等 (深度 12)</option>
+                            <option value="pikafish_hard">Pikafish 困难 (深度 16)</option>
+                            <option value="pikafish_extreme">Pikafish 极限 (深度 20)</option>
+                            <option value="easy">JS AI 简单 (深度 4)</option>
+                            <option value="medium">JS AI 中等 (深度 5)</option>
+                            <option value="hard">JS AI 困难 (深度 6)</option>
+                        </select>
+                    </div>
+
+                    <div class="editor-actions">
+                        <button id="editorResetBtn" class="btn btn-secondary btn-sm">初始局面</button>
+                        <button id="editorClearBtn" class="btn btn-secondary btn-sm">清空</button>
+                        <button id="editorStartBtn" class="btn btn-primary">开始对局</button>
+                        <button id="editorCancelBtn" class="btn btn-sm">返回</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- AI Difficulty Modal -->
         <div id="aiDifficultyModal" class="modal hidden">
             <div class="modal-content">
@@ -158,6 +242,15 @@
                         <span class="diff-info">深度 20</span>
                     </button>
                 </div>
+                <div class="fen-setup">
+                    <p class="ai-section-label">自定义局面 (可选)</p>
+                    <div class="fen-setup-row">
+                        <input type="text" id="fenInput" placeholder="粘贴 FEN 字符串..." spellcheck="false">
+                        <button id="clearFenBtn" class="btn btn-sm">清除</button>
+                    </div>
+                    <p id="fenError" class="fen-error hidden"></p>
+                    <button id="openEditorBtn" class="btn btn-sm" style="margin-top: 8px; width: 100%;">可视化编辑局面</button>
+                </div>
                 <button id="cancelAIBtn" class="btn" style="margin-top: 15px;">取消</button>
             </div>
         </div>
@@ -166,6 +259,6 @@
     <script src="/static/websocket.js?v=2"></script>
     <script src="/static/ai.js?v=2"></script>
     <script src="/static/pikafish-bridge.js?v=5"></script>
-    <script src="/static/game.js?v=5"></script>
+    <script src="/static/game.js?v=7"></script>
 </body>
 </html>
