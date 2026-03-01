@@ -999,6 +999,7 @@ class GameUI {
         this.aiColor = null;
         this.localGameState = null;
         this.moveHistory = [];  // Track moves for sharing
+        this.boardStateHistory = [];  // Snapshots for takeback
         this.currentGameId = null;  // Game ID for sharing
 
         // Pikafish WASM state
@@ -1163,6 +1164,10 @@ class GameUI {
             }
         });
 
+        document.getElementById('takebackBtn').addEventListener('click', () => {
+            this.takeBack();
+        });
+
         // Draw offer modal
         document.getElementById('acceptDrawBtn').addEventListener('click', () => {
             gameSocket.acceptDraw();
@@ -1192,8 +1197,9 @@ class GameUI {
             document.getElementById('shareGameBtn').style.display = 'none';
             // Reset AI game state
             this.resetAIState();
-            // Show draw button again
+            // Restore button visibility for online games
             document.getElementById('drawBtn').style.display = '';
+            document.getElementById('takebackBtn').style.display = 'none';
             this.showScreen('lobby');
         });
     }
@@ -1439,6 +1445,7 @@ class GameUI {
         this.usePikafish = false;  // Use JavaScript AI
         this.aiDifficulty = difficulty;
         this.moveHistory = [];  // Reset move history
+        this.boardStateHistory = [];
         this.currentGameId = this.generateGameId();  // Generate new game ID
 
         // Initialize AI with selected difficulty
@@ -1453,8 +1460,9 @@ class GameUI {
         this.showScreen('game');
         this.updateGameStatus(this.localGameState);
 
-        // Hide draw button for AI games
+        // Hide draw button, show takeback for AI games
         document.getElementById('drawBtn').style.display = 'none';
+        document.getElementById('takebackBtn').style.display = '';
 
         // If it's AI's turn, make AI move
         if (this.localGameState.current_turn === this.aiColor) {
@@ -1478,6 +1486,7 @@ class GameUI {
         this.usePikafish = true;  // Use Pikafish engine
         this.aiDifficulty = difficulty;
         this.moveHistory = [];  // Reset move history
+        this.boardStateHistory = [];
         this.currentGameId = this.generateGameId();  // Generate new game ID
 
         // Create game state from FEN or initial position
@@ -1488,8 +1497,9 @@ class GameUI {
 
         this.showScreen('game');
 
-        // Hide draw button for AI games
+        // Hide draw button, show takeback for AI games
         document.getElementById('drawBtn').style.display = 'none';
+        document.getElementById('takebackBtn').style.display = '';
 
         // Lazily initialize Pikafish WASM engine
         if (!this.pikafishBridge.ready) {
@@ -1531,6 +1541,7 @@ class GameUI {
         this.playerColor = playerColor;
         this.aiColor = playerColor === 'red' ? 'black' : 'red';
         this.moveHistory = [];
+        this.boardStateHistory = [];
         this.currentGameId = this.generateGameId();
 
         xiangqiAI.setDifficulty(difficulty);
@@ -1539,6 +1550,7 @@ class GameUI {
         this.showScreen('game');
         this.updateGameStatus(this.localGameState);
         document.getElementById('drawBtn').style.display = 'none';
+        document.getElementById('takebackBtn').style.display = '';
 
         if (this.localGameState.current_turn === this.aiColor) {
             this.makeAIMove();
@@ -1552,12 +1564,14 @@ class GameUI {
         this.playerColor = playerColor;
         this.aiColor = playerColor === 'red' ? 'black' : 'red';
         this.moveHistory = [];
+        this.boardStateHistory = [];
         this.currentGameId = this.generateGameId();
 
         this.localGameState = gameState;
         this.board.setGameState(this.localGameState, this.playerColor);
         this.showScreen('game');
         document.getElementById('drawBtn').style.display = 'none';
+        document.getElementById('takebackBtn').style.display = '';
 
         if (!this.pikafishBridge.ready) {
             const statusEl = document.getElementById('gameStatus');
@@ -1765,6 +1779,14 @@ class GameUI {
     }
 
     applyLocalMove(fromRow, fromCol, toRow, toCol) {
+        // Save snapshot for takeback
+        this.boardStateHistory.push({
+            pieces: JSON.parse(JSON.stringify(this.localGameState.board.pieces)),
+            current_turn: this.localGameState.current_turn,
+            state: this.localGameState.state,
+            moveHistoryLength: this.moveHistory.length
+        });
+
         const state = this.localGameState;
         const pieceIdx = state.board.pieces.findIndex(p => p.row === fromRow && p.col === fromCol);
         if (pieceIdx === -1) return;
@@ -1844,6 +1866,37 @@ class GameUI {
         }
     }
 
+    takeBack() {
+        if (!this.isAIGame || !this.localGameState) return;
+        if (this.localGameState.state === 'playing' && this.localGameState.current_turn === this.aiColor) return; // AI is thinking
+
+        // Undo 2 half-moves (AI's move + player's move) to return to player's turn
+        // If only 1 snapshot exists (player moved first, AI hasn't responded), undo just 1
+        const stepsToUndo = this.boardStateHistory.length >= 2 ? 2 : this.boardStateHistory.length;
+        if (stepsToUndo === 0) return;
+
+        // Pop to the target snapshot
+        let snapshot;
+        for (let i = 0; i < stepsToUndo; i++) {
+            snapshot = this.boardStateHistory.pop();
+        }
+
+        // Restore game state
+        this.localGameState.board.pieces = snapshot.pieces;
+        this.localGameState.current_turn = snapshot.current_turn;
+        this.localGameState.state = snapshot.state;
+        this.moveHistory.length = snapshot.moveHistoryLength;
+
+        // Update display
+        this.board.setGameState(this.localGameState, this.playerColor);
+        this.board.selectedPiece = null;
+        this.board.validMoves = [];
+        this.updateGameStatus(this.localGameState);
+
+        // Hide game over banner if visible
+        document.getElementById('gameOverBanner').classList.add('hidden');
+    }
+
     // Handle AI game rematch
     startAIRematch() {
         // Swap colors
@@ -1853,6 +1906,7 @@ class GameUI {
 
         // Reset move history and generate new game ID
         this.moveHistory = [];
+        this.boardStateHistory = [];
         this.currentGameId = this.generateGameId();
 
         // Create new game
@@ -1876,6 +1930,7 @@ class GameUI {
         this.usePikafish = false;
         this.localGameState = null;
         this.moveHistory = [];
+        this.boardStateHistory = [];
         this.currentGameId = null;
     }
 }
