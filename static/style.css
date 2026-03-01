@@ -338,6 +338,45 @@ header h1 {
     font-size: 0.9em;
 }
 
+/* Game Over Banner */
+.game-over-banner {
+    margin-bottom: 10px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    border: 2px solid #e94560;
+    padding: 12px 20px;
+    text-align: center;
+}
+
+.game-over-banner-content {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+
+.game-over-title {
+    font-size: 1.2em;
+    font-weight: bold;
+    color: #e94560;
+}
+
+.game-over-message {
+    font-size: 1em;
+    color: #ccc;
+}
+
+.game-over-buttons {
+    display: flex;
+    gap: 8px;
+}
+
+.btn-sm {
+    padding: 6px 14px;
+    font-size: 0.85em;
+}
+
 /* Difficulty buttons */
 .difficulty-grid {
     display: grid;

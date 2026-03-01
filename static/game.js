@@ -855,7 +855,7 @@ class GameUI {
         });
 
         document.getElementById('backToLobbyBtn').addEventListener('click', () => {
-            document.getElementById('gameOverModal').classList.add('hidden');
+            document.getElementById('gameOverBanner').classList.add('hidden');
             document.getElementById('rematchStatus').textContent = '';
             document.getElementById('rematchBtn').disabled = false;
             document.getElementById('shareGameBtn').style.display = 'none';
@@ -979,7 +979,7 @@ class GameUI {
         });
 
         gameSocket.on('rematch_started', (data) => {
-            document.getElementById('gameOverModal').classList.add('hidden');
+            document.getElementById('gameOverBanner').classList.add('hidden');
             document.getElementById('rematchStatus').textContent = '';
             document.getElementById('rematchBtn').disabled = false;
             document.getElementById('gameStatus').textContent = data.message;
@@ -1000,7 +1000,7 @@ class GameUI {
     }
 
     showGameOver(winner, reason = null) {
-        const modal = document.getElementById('gameOverModal');
+        const modal = document.getElementById('gameOverBanner');
         const title = document.getElementById('gameOverTitle');
         const message = document.getElementById('gameOverMessage');
 
@@ -1008,30 +1008,37 @@ class GameUI {
         document.getElementById('rematchBtn').disabled = false;
         document.getElementById('rematchStatus').textContent = '';
 
-        modal.classList.remove('hidden');
-
-        // Save the game
-        this.saveGame(winner);
+        // Show share button immediately (don't wait for async save)
+        const shareBtn = document.getElementById('shareGameBtn');
+        if (shareBtn) {
+            shareBtn.style.display = '';
+            shareBtn.onclick = () => this.shareGame();
+        }
 
         if (winner === 'draw' || reason === 'draw') {
             title.textContent = '和棋';
             message.textContent = '双方同意和棋';
-            return;
-        }
-
-        const winnerColor = winner === 'red_win' ? '红方' : '黑方';
-        const youWon = (winner === 'red_win' && this.playerColor === 'red') ||
-                       (winner === 'black_win' && this.playerColor === 'black');
-
-        title.textContent = youWon ? '你赢了！' : '你输了';
-
-        if (reason === 'resign') {
-            message.textContent = youWon ? '对手认输' : '你认输了';
-        } else if (reason === 'disconnect') {
-            message.textContent = youWon ? '对手断线超时' : '你断线超时';
         } else {
-            message.textContent = `${winnerColor}获胜！`;
+            const winnerColor = winner === 'red_win' ? '红方' : '黑方';
+            const youWon = (winner === 'red_win' && this.playerColor === 'red') ||
+                           (winner === 'black_win' && this.playerColor === 'black');
+
+            title.textContent = youWon ? '你赢了！' : '你输了';
+
+            if (reason === 'resign') {
+                message.textContent = youWon ? '对手认输' : '你认输了';
+            } else if (reason === 'disconnect') {
+                message.textContent = youWon ? '对手断线超时' : '你断线超时';
+            } else {
+                message.textContent = `${winnerColor}获胜！`;
+            }
         }
+
+        // Show modal after all content is set
+        modal.classList.remove('hidden');
+
+        // Save the game in background
+        this.saveGame(winner);
     }
 
     async saveGame(result) {
@@ -1056,12 +1063,6 @@ class GameUI {
             const data = await response.json();
             if (data.success) {
                 this.currentGameId = gameId;
-                // Show share button
-                const shareBtn = document.getElementById('shareGameBtn');
-                if (shareBtn) {
-                    shareBtn.style.display = '';
-                    shareBtn.onclick = () => this.shareGame();
-                }
             }
         } catch (error) {
             console.error('Failed to save game:', error);
@@ -1357,7 +1358,7 @@ class GameUI {
         this.localGameState = this.createInitialGameState();
         this.board.setGameState(this.localGameState, this.playerColor);
 
-        document.getElementById('gameOverModal').classList.add('hidden');
+        document.getElementById('gameOverBanner').classList.add('hidden');
         document.getElementById('rematchStatus').textContent = '';
         document.getElementById('shareGameBtn').style.display = 'none';  // Hide share button
         document.getElementById('gameStatus').textContent = '新一局开始！双方交换颜色！';
