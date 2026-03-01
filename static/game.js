@@ -592,12 +592,11 @@ class GameBoard {
                 break;
 
             case 'soldier':
-                // Pawn movement - sideways only allowed on opponent's side
+                // Pawn movement - sideways only allowed after crossing river
                 const forward = piece.color === 'red' ? 1 : -1;
                 addMove(row + forward, col);
-                // After crossing river OR after gaining abilities, can move sideways
                 const crossed = (piece.color === 'red' && row >= 5) || (piece.color === 'black' && row <= 4);
-                if (crossed || hasAbilities) {
+                if (crossed) {
                     addMove(row, col - 1);
                     addMove(row, col + 1);
                 }
