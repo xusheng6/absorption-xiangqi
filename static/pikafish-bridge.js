@@ -23,7 +23,7 @@ class PikafishBridge {
         this.initializing = true;
         this._initPromise = new Promise((resolve, reject) => {
             try {
-                this.worker = new Worker('/static/pikafish-worker.js');
+                this.worker = new Worker('/static/pikafish-worker.js?v=2');
 
                 this.worker.onmessage = (e) => {
                     const msg = e.data;

@@ -37,43 +37,61 @@ function setCachedNNUE(db, hash, data) {
     });
 }
 
-async function loadNNUE() {
-    // Fetch the server's current NNUE hash
-    let serverHash = '';
-    try {
-        const hashResp = await fetch('/api/nnue-hash');
-        const hashData = await hashResp.json();
-        serverHash = hashData.hash || '';
-    } catch (e) {
-        self.postMessage({ type: 'status', message: 'Could not check NNUE version, downloading...' });
-    }
+async function hashData(buffer) {
+    const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
 
+async function loadNNUE() {
     // Check IndexedDB cache
     let cachedData = null;
+    let cachedHash = '';
     try {
         const db = await openNNUECache();
         const cached = await getCachedNNUE(db);
-        if (cached && cached.hash === serverHash && serverHash !== '') {
+        if (cached && cached.hash && cached.data) {
             cachedData = cached.data;
-            self.postMessage({ type: 'status', message: 'Loading NNUE from cache...' });
-            self.postMessage({ type: 'progress', loaded: cachedData.byteLength, total: cachedData.byteLength });
+            cachedHash = cached.hash;
         }
         db.close();
     } catch (e) {
         // IndexedDB unavailable, fall through to download
     }
 
-    if (cachedData) {
+    // Use ETag/If-None-Match to check if the file changed
+    const headers = {};
+    if (cachedData && cachedHash) {
+        headers['If-None-Match'] = '"' + cachedHash + '"';
+    }
+
+    self.postMessage({ type: 'status', message: cachedData ? 'Checking NNUE update...' : 'Downloading NNUE file...' });
+    const nnueResponse = await fetch('/static/pikafish.nnue', { headers });
+
+    // 304 Not Modified — use cache
+    if (nnueResponse.status === 304 && cachedData) {
+        self.postMessage({ type: 'status', message: 'Loading NNUE from cache...' });
+        self.postMessage({ type: 'progress', loaded: cachedData.byteLength, total: cachedData.byteLength });
         return new Uint8Array(cachedData);
     }
 
-    // Download with progress
-    self.postMessage({ type: 'status', message: 'Downloading NNUE file...' });
-    const nnueResponse = await fetch('/static/pikafish.nnue');
+    // Server doesn't support ETag, but we have a cache — do a HEAD/size check
+    if (cachedData && nnueResponse.ok) {
+        const contentLength = nnueResponse.headers.get('Content-Length');
+        if (contentLength && parseInt(contentLength, 10) === cachedData.byteLength) {
+            // Same size — use cache (NNUE files rarely change)
+            self.postMessage({ type: 'status', message: 'Loading NNUE from cache...' });
+            self.postMessage({ type: 'progress', loaded: cachedData.byteLength, total: cachedData.byteLength });
+            return new Uint8Array(cachedData);
+        }
+    }
+
     if (!nnueResponse.ok) {
         throw new Error('Failed to fetch NNUE file: ' + nnueResponse.status);
     }
 
+    // Download with progress
+    self.postMessage({ type: 'status', message: 'Downloading NNUE file...' });
     const contentLength = nnueResponse.headers.get('Content-Length');
     const totalBytes = contentLength ? parseInt(contentLength, 10) : 0;
 
@@ -102,15 +120,14 @@ async function loadNNUE() {
         nnueArray = new Uint8Array(nnueData);
     }
 
-    // Store in IndexedDB for next time
-    if (serverHash) {
-        try {
-            const db = await openNNUECache();
-            await setCachedNNUE(db, serverHash, nnueArray.buffer);
-            db.close();
-        } catch (e) {
-            // Caching failed, not critical
-        }
+    // Compute hash and store in IndexedDB
+    try {
+        const fileHash = await hashData(nnueArray.buffer);
+        const db = await openNNUECache();
+        await setCachedNNUE(db, fileHash, nnueArray.buffer);
+        db.close();
+    } catch (e) {
+        // Caching failed, not critical
     }
 
     return nnueArray;
