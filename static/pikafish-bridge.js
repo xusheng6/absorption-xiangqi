@@ -111,19 +111,15 @@ class PikafishBridge {
 
     /**
      * Get the best move for the given position.
-     * @param {Array} moveHistory - Array of move objects [{from: [r,c], to: [r,c], ...}]
+     * @param {object} gameState - The local game state with board.pieces[] and current_turn
+     * @param {Array} moveHistory - Array of move objects (used for move number calculation)
      * @param {string} difficulty - One of 'pikafish_easy', 'pikafish_medium', 'pikafish_hard', 'pikafish_extreme'
      * @returns {Promise<{from: {row, col}, to: {row, col}}>}
      */
-    async getBestMove(moveHistory, difficulty) {
+    async getBestMove(gameState, moveHistory, difficulty) {
         if (!this.ready) {
             throw new Error('Engine not initialized');
         }
-
-        // Convert move history to UCI format
-        const uciMoves = moveHistory.map(m => {
-            return PikafishBridge.coordsToUCI(m.from[0], m.from[1], m.to[0], m.to[1]);
-        });
 
         // Determine search depth based on difficulty
         const depthMap = {
@@ -134,15 +130,15 @@ class PikafishBridge {
         };
         const depth = depthMap[difficulty] || 12;
 
+        // Generate FEN from game state (includes absorption markers)
+        const fen = PikafishBridge.gameStateToFEN(gameState, moveHistory);
+        console.log('[PikafishBridge] FEN:', fen);
+
         // Wait for engine to be ready
         this.sendCommand('isready');
 
-        // Set position
-        if (uciMoves.length > 0) {
-            this.sendCommand('position startpos moves ' + uciMoves.join(' '));
-        } else {
-            this.sendCommand('position startpos');
-        }
+        // Set position via FEN (more robust than replaying moves from startpos)
+        this.sendCommand('position fen ' + fen);
 
         // Start search and wait for bestmove
         const bestmovePromise = new Promise((resolve, reject) => {
@@ -165,6 +161,76 @@ class PikafishBridge {
         }
 
         return PikafishBridge.uciToCoords(bestmove);
+    }
+
+    /**
+     * Convert game state to a Pikafish-compatible FEN string.
+     * Includes absorption markers: e.g., R(cp) for a chariot with cannon+soldier abilities.
+     *
+     * Pikafish FEN piece chars: R/r=rook, A/a=advisor, C/c=cannon, P/p=pawn, N/n=knight, B/b=bishop, K/k=king
+     * Absorption ability chars (inside parens): r=chariot, a=advisor, c=cannon, p=soldier, n=horse, b=elephant
+     */
+    static gameStateToFEN(gameState, moveHistory) {
+        // Piece type to FEN character mapping
+        const pieceChar = {
+            red: { chariot: 'R', horse: 'N', elephant: 'B', advisor: 'A', general: 'K', cannon: 'C', soldier: 'P' },
+            black: { chariot: 'r', horse: 'n', elephant: 'b', advisor: 'a', general: 'k', cannon: 'c', soldier: 'p' }
+        };
+
+        // Ability type to absorption char (always lowercase, order: r,a,c,p,n,b matching Pikafish)
+        const abilityChar = {
+            chariot: 'r', advisor: 'a', cannon: 'c', soldier: 'p', horse: 'n', elephant: 'b'
+        };
+        // Order in which abilities are output (matches Pikafish's absorbed_to_string)
+        const abilityOrder = ['chariot', 'advisor', 'cannon', 'soldier', 'horse', 'elephant'];
+
+        // Build a 10x9 board grid
+        const board = [];
+        for (let r = 0; r < 10; r++) {
+            board[r] = new Array(9).fill(null);
+        }
+
+        for (const piece of gameState.board.pieces) {
+            const ch = pieceChar[piece.color]?.[piece.type];
+            if (!ch) continue;
+
+            // Build absorption string
+            let absStr = '';
+            if (piece.abilities && piece.abilities.length > 0) {
+                for (const aType of abilityOrder) {
+                    if (piece.abilities.includes(aType)) {
+                        absStr += abilityChar[aType];
+                    }
+                }
+            }
+
+            board[piece.row][piece.col] = absStr ? ch + '(' + absStr + ')' : ch;
+        }
+
+        // Build FEN string (rank 9 first, rank 0 last)
+        const ranks = [];
+        for (let r = 9; r >= 0; r--) {
+            let rank = '';
+            let empty = 0;
+            for (let c = 0; c < 9; c++) {
+                if (board[r][c] === null) {
+                    empty++;
+                } else {
+                    if (empty > 0) {
+                        rank += empty;
+                        empty = 0;
+                    }
+                    rank += board[r][c];
+                }
+            }
+            if (empty > 0) rank += empty;
+            ranks.push(rank);
+        }
+
+        const side = gameState.current_turn === 'red' ? 'w' : 'b';
+        const moveNum = Math.floor((moveHistory?.length || 0) / 2) + 1;
+
+        return ranks.join('/') + ' ' + side + ' - - 0 ' + moveNum;
     }
 
     /**

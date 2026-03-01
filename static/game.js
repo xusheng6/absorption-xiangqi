@@ -815,6 +815,17 @@ class GameUI {
             });
         });
 
+        // Copy FEN button
+        document.getElementById('copyFenBtn').addEventListener('click', () => {
+            const input = document.getElementById('fenString');
+            input.select();
+            navigator.clipboard.writeText(input.value).then(() => {
+                const btn = document.getElementById('copyFenBtn');
+                btn.textContent = '已复制!';
+                setTimeout(() => btn.textContent = '复制', 2000);
+            });
+        });
+
         // Game controls
         document.getElementById('drawBtn').addEventListener('click', () => {
             gameSocket.offerDraw();
@@ -997,6 +1008,15 @@ class GameUI {
         const statusEl = document.getElementById('gameStatus');
         const isMyTurn = game.current_turn === this.playerColor;
         statusEl.textContent = isMyTurn ? '你的回合' : '等待对手';
+        this.updateFEN(game);
+    }
+
+    updateFEN(gameState) {
+        const fenInput = document.getElementById('fenString');
+        if (!fenInput) return;
+        const state = gameState || this.localGameState || this.board?.gameState;
+        if (!state || !state.board) return;
+        fenInput.value = PikafishBridge.gameStateToFEN(state, this.moveHistory);
     }
 
     showGameOver(winner, reason = null) {
@@ -1231,7 +1251,7 @@ class GameUI {
                 difficulty: this.aiDifficulty
             });
 
-            const result = await this.pikafishBridge.getBestMove(this.moveHistory, this.aiDifficulty);
+            const result = await this.pikafishBridge.getBestMove(this.localGameState, this.moveHistory, this.aiDifficulty);
             console.log('Pikafish WASM result:', result);
 
             if (result) {
