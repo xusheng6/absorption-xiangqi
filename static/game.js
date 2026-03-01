@@ -2,7 +2,7 @@
  * Game rendering and logic for Absorption Xiangqi
  * Version: 2.0 (with Pikafish integration)
  */
-console.log('Game.js loaded - v2.0 with Pikafish');
+console.log('Game.js loaded - v3.0 with Pikafish WASM');
 
 // Piece names in Chinese
 const PIECE_NAMES = {
@@ -698,15 +698,13 @@ class GameUI {
         this.moveHistory = [];  // Track moves for sharing
         this.currentGameId = null;  // Game ID for sharing
 
-        // Pikafish state
+        // Pikafish WASM state
         this.usePikafish = false;
-        this.pikafishAvailable = false;
+        this.pikafishBridge = new PikafishBridge();
+        this.pikafishAvailable = true;  // Always available via WASM
 
         this.setupEventListeners();
         this.setupWebSocketHandlers();
-
-        // Check if Pikafish is available
-        this.checkPikafishStatus();
 
         // Connect to server
         gameSocket.connect().then(() => {
@@ -716,22 +714,6 @@ class GameUI {
         }).catch((error) => {
             console.error('Failed to connect:', error);
         });
-    }
-
-    async checkPikafishStatus() {
-        try {
-            const response = await fetch('/api/pikafish/status');
-            const data = await response.json();
-            console.log('Pikafish status:', data);
-            this.pikafishAvailable = data.available;
-            if (this.pikafishAvailable) {
-                document.getElementById('pikafishLabel').style.display = 'block';
-                document.getElementById('pikafishGrid').style.display = 'grid';
-                console.log('Pikafish UI enabled');
-            }
-        } catch (error) {
-            console.error('Pikafish status check failed:', error);
-        }
     }
 
     checkJoinLink() {
@@ -1125,7 +1107,7 @@ class GameUI {
         document.getElementById('drawBtn').style.display = 'none';
     }
 
-    startPikafishGame(difficulty) {
+    async startPikafishGame(difficulty) {
         document.getElementById('aiDifficultyModal').classList.add('hidden');
 
         this.isAIGame = true;
@@ -1141,10 +1123,36 @@ class GameUI {
         this.board.setGameState(this.localGameState, this.playerColor);
 
         this.showScreen('game');
-        this.updateGameStatus({ current_turn: 'red' });
 
         // Hide draw button for AI games
         document.getElementById('drawBtn').style.display = 'none';
+
+        // Lazily initialize Pikafish WASM engine
+        if (!this.pikafishBridge.ready) {
+            const statusEl = document.getElementById('gameStatus');
+            statusEl.innerHTML = '正在加载 Pikafish 引擎...';
+            this.pikafishBridge.onStatus((msg) => {
+                statusEl.innerHTML = msg;
+            });
+            this.pikafishBridge.onProgress((loaded, total) => {
+                const pct = Math.round(loaded / total * 100);
+                const loadedMB = (loaded / 1048576).toFixed(1);
+                const totalMB = (total / 1048576).toFixed(1);
+                statusEl.innerHTML = `下载 NNUE (${loadedMB}/${totalMB} MB)`
+                    + `<div style="width:200px;height:8px;background:#333;border-radius:4px;margin:6px auto 0">`
+                    + `<div style="width:${pct}%;height:100%;background:#e94560;border-radius:4px;transition:width 0.2s"></div></div>`;
+            });
+            try {
+                await this.pikafishBridge.init();
+                console.log('Pikafish WASM engine ready');
+            } catch (error) {
+                console.error('Pikafish WASM init failed:', error);
+                statusEl.textContent = 'Pikafish 加载失败，使用 JS AI';
+                this.usePikafish = false;
+            }
+        }
+
+        this.updateGameStatus({ current_turn: 'red' });
     }
 
     generateGameId() {
@@ -1217,51 +1225,40 @@ class GameUI {
 
     async makePikafishMove() {
         try {
-            console.log('Calling Pikafish API with:', {
+            console.log('Pikafish WASM move request:', {
                 move_history: this.moveHistory,
                 difficulty: this.aiDifficulty
             });
 
-            const response = await fetch('/api/pikafish/move', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    move_history: this.moveHistory,
-                    difficulty: this.aiDifficulty
-                })
-            });
+            const result = await this.pikafishBridge.getBestMove(this.moveHistory, this.aiDifficulty);
+            console.log('Pikafish WASM result:', result);
 
-            const data = await response.json();
-            console.log('Pikafish API response:', data);
-
-            if (data.success && data.move) {
+            if (result) {
                 this.applyLocalMove(
-                    data.move.from.row,
-                    data.move.from.col,
-                    data.move.to.row,
-                    data.move.to.col
+                    result.from.row,
+                    result.from.col,
+                    result.to.row,
+                    result.to.col
                 );
             } else {
-                // Pikafish failed, fall back to JS AI
-                console.error('Pikafish failed:', data.error);
-                document.getElementById('gameStatus').textContent = 'Pikafish 出错，使用备用 AI...';
-                setTimeout(() => {
-                    const move = xiangqiAI.getBestMove(this.localGameState, this.aiColor);
-                    if (move) {
-                        this.applyLocalMove(move.from.row, move.from.col, move.to.row, move.to.col);
-                    } else {
-                        this.localGameState.state = 'red_win';
-                        this.showGameOver('red_win', 'checkmate');
-                    }
-                }, 100);
+                // Engine returned no move - opponent wins
+                console.log('Pikafish returned no move');
+                this.localGameState.state = 'red_win';
+                this.showGameOver('red_win', 'checkmate');
             }
         } catch (error) {
-            console.error('Pikafish request failed:', error);
+            console.error('Pikafish WASM error:', error);
             // Fall back to JS AI
-            const move = xiangqiAI.getBestMove(this.localGameState, this.aiColor);
-            if (move) {
-                this.applyLocalMove(move.from.row, move.from.col, move.to.row, move.to.col);
-            }
+            document.getElementById('gameStatus').textContent = 'Pikafish 出错，使用备用 AI...';
+            setTimeout(() => {
+                const move = xiangqiAI.getBestMove(this.localGameState, this.aiColor);
+                if (move) {
+                    this.applyLocalMove(move.from.row, move.from.col, move.to.row, move.to.col);
+                } else {
+                    this.localGameState.state = 'red_win';
+                    this.showGameOver('red_win', 'checkmate');
+                }
+            }, 100);
         }
     }
 
