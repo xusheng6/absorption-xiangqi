@@ -1,0 +1,113 @@
+{
+  "game_id": "wspcoymv",
+  "moves": [
+    {
+      "from": [
+        0,
+        6
+      ],
+      "to": [
+        2,
+        4
+      ],
+      "piece": "elephant",
+      "color": "red",
+      "captured": null
+    },
+    {
+      "from": [
+        7,
+        7
+      ],
+      "to": [
+        7,
+        4
+      ],
+      "piece": "cannon",
+      "color": "black",
+      "captured": null
+    },
+    {
+      "from": [
+        2,
+        4
+      ],
+      "to": [
+        0,
+        6
+      ],
+      "piece": "elephant",
+      "color": "red",
+      "captured": null
+    },
+    {
+      "from": [
+        7,
+        4
+      ],
+      "to": [
+        3,
+        4
+      ],
+      "piece": "cannon",
+      "color": "black",
+      "captured": "soldier"
+    },
+    {
+      "from": [
+        0,
+        6
+      ],
+      "to": [
+        2,
+        8
+      ],
+      "piece": "elephant",
+      "color": "red",
+      "captured": null
+    },
+    {
+      "from": [
+        7,
+        1
+      ],
+      "to": [
+        5,
+        1
+      ],
+      "piece": "cannon",
+      "color": "black",
+      "captured": null
+    },
+    {
+      "from": [
+        2,
+        7
+      ],
+      "to": [
+        8,
+        7
+      ],
+      "piece": "cannon",
+      "color": "red",
+      "captured": null
+    },
+    {
+      "from": [
+        5,
+        1
+      ],
+      "to": [
+        5,
+        4
+      ],
+      "piece": "cannon",
+      "color": "black",
+      "captured": null
+    }
+  ],
+  "result": "black_win",
+  "is_ai_game": true,
+  "ai_difficulty": "pikafish_easy",
+  "saved_at": "2026-03-01T12:39:07.422981"
+}

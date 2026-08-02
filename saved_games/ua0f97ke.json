@@ -1,0 +1,113 @@
+{
+  "game_id": "ua0f97ke",
+  "moves": [
+    {
+      "from": [
+        0,
+        6
+      ],
+      "to": [
+        2,
+        4
+      ],
+      "piece": "elephant",
+      "color": "red",
+      "captured": null
+    },
+    {
+      "from": [
+        6,
+        2
+      ],
+      "to": [
+        5,
+        2
+      ],
+      "piece": "soldier",
+      "color": "black",
+      "captured": null
+    },
+    {
+      "from": [
+        3,
+        6
+      ],
+      "to": [
+        4,
+        6
+      ],
+      "piece": "soldier",
+      "color": "red",
+      "captured": null
+    },
+    {
+      "from": [
+        9,
+        1
+      ],
+      "to": [
+        7,
+        2
+      ],
+      "piece": "horse",
+      "color": "black",
+      "captured": null
+    },
+    {
+      "from": [
+        0,
+        7
+      ],
+      "to": [
+        2,
+        6
+      ],
+      "piece": "horse",
+      "color": "red",
+      "captured": null
+    },
+    {
+      "from": [
+        9,
+        6
+      ],
+      "to": [
+        7,
+        4
+      ],
+      "piece": "elephant",
+      "color": "black",
+      "captured": null
+    },
+    {
+      "from": [
+        0,
+        1
+      ],
+      "to": [
+        2,
+        0
+      ],
+      "piece": "horse",
+      "color": "red",
+      "captured": null
+    },
+    {
+      "from": [
+        7,
+        1
+      ],
+      "to": [
+        7,
+        0
+      ],
+      "piece": "cannon",
+      "color": "black",
+      "captured": null
+    }
+  ],
+  "result": "black_win",
+  "is_ai_game": true,
+  "ai_difficulty": "pikafish_easy",
+  "saved_at": "2026-03-01T16:47:31.276997"
+}

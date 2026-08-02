@@ -1,0 +1,48 @@
+{
+  "game_id": "df169068",
+  "moves": [
+    {
+      "from": [
+        2,
+        7
+      ],
+      "to": [
+        2,
+        4
+      ],
+      "piece": "cannon",
+      "color": "red",
+      "captured": null
+    },
+    {
+      "from": [
+        9,
+        7
+      ],
+      "to": [
+        7,
+        6
+      ],
+      "piece": "horse",
+      "color": "black",
+      "captured": null
+    },
+    {
+      "from": [
+        2,
+        4
+      ],
+      "to": [
+        6,
+        4
+      ],
+      "piece": "cannon",
+      "color": "red",
+      "captured": "soldier"
+    }
+  ],
+  "result": "red_win",
+  "is_ai_game": false,
+  "ai_difficulty": null,
+  "saved_at": "2026-01-25T09:48:09.051902"
+}

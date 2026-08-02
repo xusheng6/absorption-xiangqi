@@ -1,0 +1,35 @@
+{
+  "game_id": "h8ohn1me",
+  "moves": [
+    {
+      "from": [
+        1,
+        4
+      ],
+      "to": [
+        2,
+        3
+      ],
+      "piece": "advisor",
+      "color": "red",
+      "captured": null
+    },
+    {
+      "from": [
+        5,
+        5
+      ],
+      "to": [
+        0,
+        5
+      ],
+      "piece": "chariot",
+      "color": "black",
+      "captured": "advisor"
+    }
+  ],
+  "result": "black_win",
+  "is_ai_game": true,
+  "ai_difficulty": "pikafish_easy",
+  "saved_at": "2026-03-01T16:24:07.540493"
+}

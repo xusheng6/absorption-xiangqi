@@ -1,0 +1,321 @@
+{
+  "game_id": "wln1va8i",
+  "moves": [
+    {
+      "from": [
+        2,
+        7
+      ],
+      "to": [
+        2,
+        6
+      ],
+      "piece": "cannon",
+      "color": "red",
+      "captured": null
+    },
+    {
+      "from": [
+        7,
+        1
+      ],
+      "to": [
+        7,
+        4
+      ],
+      "piece": "cannon",
+      "color": "black",
+      "captured": null
+    },
+    {
+      "from": [
+        0,
+        1
+      ],
+      "to": [
+        2,
+        2
+      ],
+      "piece": "horse",
+      "color": "red",
+      "captured": null
+    },
+    {
+      "from": [
+        9,
+        1
+      ],
+      "to": [
+        7,
+        2
+      ],
+      "piece": "horse",
+      "color": "black",
+      "captured": null
+    },
+    {
+      "from": [
+        2,
+        6
+      ],
+      "to": [
+        6,
+        6
+      ],
+      "piece": "cannon",
+      "color": "red",
+      "captured": "soldier"
+    },
+    {
+      "from": [
+        9,
+        0
+      ],
+      "to": [
+        9,
+        1
+      ],
+      "piece": "chariot",
+      "color": "black",
+      "captured": null
+    },
+    {
+      "from": [
+        0,
+        0
+      ],
+      "to": [
+        0,
+        1
+      ],
+      "piece": "chariot",
+      "color": "red",
+      "captured": null
+    },
+    {
+      "from": [
+        6,
+        2
+      ],
+      "to": [
+        5,
+        2
+      ],
+      "piece": "soldier",
+      "color": "black",
+      "captured": null
+    },
+    {
+      "from": [
+        0,
+        7
+      ],
+      "to": [
+        2,
+        6
+      ],
+      "piece": "horse",
+      "color": "red",
+      "captured": null
+    },
+    {
+      "from": [
+        7,
+        7
+      ],
+      "to": [
+        2,
+        7
+      ],
+      "piece": "cannon",
+      "color": "black",
+      "captured": null
+    },
+    {
+      "from": [
+        0,
+        2
+      ],
+      "to": [
+        2,
+        4
+      ],
+      "piece": "elephant",
+      "color": "red",
+      "captured": null
+    },
+    {
+      "from": [
+        9,
+        7
+      ],
+      "to": [
+        7,
+        8
+      ],
+      "piece": "horse",
+      "color": "black",
+      "captured": null
+    },
+    {
+      "from": [
+        0,
+        8
+      ],
+      "to": [
+        0,
+        7
+      ],
+      "piece": "chariot",
+      "color": "red",
+      "captured": null
+    },
+    {
+      "from": [
+        2,
+        7
+      ],
+      "to": [
+        2,
+        4
+      ],
+      "piece": "cannon",
+      "color": "black",
+      "captured": "elephant"
+    },
+    {
+      "from": [
+        0,
+        6
+      ],
+      "to": [
+        2,
+        4
+      ],
+      "piece": "elephant",
+      "color": "red",
+      "captured": "cannon"
+    },
+    {
+      "from": [
+        7,
+        8
+      ],
+      "to": [
+        6,
+        6
+      ],
+      "piece": "horse",
+      "color": "black",
+      "captured": "cannon"
+    },
+    {
+      "from": [
+        2,
+        6
+      ],
+      "to": [
+        1,
+        8
+      ],
+      "piece": "horse",
+      "color": "red",
+      "captured": null
+    },
+    {
+      "from": [
+        6,
+        6
+      ],
+      "to": [
+        4,
+        5
+      ],
+      "piece": "horse",
+      "color": "black",
+      "captured": null
+    },
+    {
+      "from": [
+        0,
+        7
+      ],
+      "to": [
+        4,
+        7
+      ],
+      "piece": "chariot",
+      "color": "red",
+      "captured": null
+    },
+    {
+      "from": [
+        4,
+        5
+      ],
+      "to": [
+        2,
+        5
+      ],
+      "piece": "horse",
+      "color": "black",
+      "captured": null
+    },
+    {
+      "from": [
+        0,
+        4
+      ],
+      "to": [
+        1,
+        4
+      ],
+      "piece": "general",
+      "color": "red",
+      "captured": null
+    },
+    {
+      "from": [
+        2,
+        5
+      ],
+      "to": [
+        2,
+        2
+      ],
+      "piece": "horse",
+      "color": "black",
+      "captured": "horse"
+    },
+    {
+      "from": [
+        1,
+        4
+      ],
+      "to": [
+        0,
+        4
+      ],
+      "piece": "general",
+      "color": "red",
+      "captured": null
+    },
+    {
+      "from": [
+        2,
+        2
+      ],
+      "to": [
+        0,
+        1
+      ],
+      "piece": "horse",
+      "color": "black",
+      "captured": "chariot"
+    }
+  ],
+  "result": "black_win",
+  "is_ai_game": true,
+  "ai_difficulty": "pikafish_easy",
+  "saved_at": "2026-03-01T00:41:22.674418"
+}

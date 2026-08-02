@@ -1,0 +1,139 @@
+{
+  "game_id": "d070c072",
+  "moves": [
+    {
+      "from": [
+        3,
+        2
+      ],
+      "to": [
+        4,
+        2
+      ],
+      "piece": "soldier",
+      "color": "red",
+      "captured": null
+    },
+    {
+      "from": [
+        6,
+        2
+      ],
+      "to": [
+        5,
+        2
+      ],
+      "piece": "soldier",
+      "color": "black",
+      "captured": null
+    },
+    {
+      "from": [
+        4,
+        2
+      ],
+      "to": [
+        5,
+        2
+      ],
+      "piece": "soldier",
+      "color": "red",
+      "captured": "soldier"
+    },
+    {
+      "from": [
+        9,
+        2
+      ],
+      "to": [
+        7,
+        4
+      ],
+      "piece": "elephant",
+      "color": "black",
+      "captured": null
+    },
+    {
+      "from": [
+        0,
+        6
+      ],
+      "to": [
+        2,
+        4
+      ],
+      "piece": "elephant",
+      "color": "red",
+      "captured": null
+    },
+    {
+      "from": [
+        7,
+        4
+      ],
+      "to": [
+        5,
+        2
+      ],
+      "piece": "elephant",
+      "color": "black",
+      "captured": "soldier"
+    },
+    {
+      "from": [
+        3,
+        4
+      ],
+      "to": [
+        4,
+        4
+      ],
+      "piece": "soldier",
+      "color": "red",
+      "captured": null
+    },
+    {
+      "from": [
+        5,
+        2
+      ],
+      "to": [
+        4,
+        2
+      ],
+      "piece": "elephant",
+      "color": "black",
+      "captured": null
+    },
+    {
+      "from": [
+        2,
+        4
+      ],
+      "to": [
+        4,
+        2
+      ],
+      "piece": "elephant",
+      "color": "red",
+      "captured": "elephant"
+    },
+    {
+      "from": [
+        6,
+        6
+      ],
+      "to": [
+        5,
+        6
+      ],
+      "piece": "soldier",
+      "color": "black",
+      "captured": null
+    }
+  ],
+  "result": "black_win",
+  "is_ai_game": false,
+  "ai_difficulty": null,
+  "saved_at": "2026-01-25T18:49:32.319386"
+}

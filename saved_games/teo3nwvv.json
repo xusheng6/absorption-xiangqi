@@ -1,0 +1,100 @@
+{
+  "game_id": "teo3nwvv",
+  "moves": [
+    {
+      "from": [
+        2,
+        7
+      ],
+      "to": [
+        2,
+        4
+      ],
+      "piece": "cannon",
+      "color": "red",
+      "captured": null
+    },
+    {
+      "from": [
+        9,
+        4
+      ],
+      "to": [
+        8,
+        4
+      ],
+      "piece": "general",
+      "color": "black",
+      "captured": null
+    },
+    {
+      "from": [
+        2,
+        4
+      ],
+      "to": [
+        6,
+        4
+      ],
+      "piece": "cannon",
+      "color": "red",
+      "captured": "soldier"
+    },
+    {
+      "from": [
+        8,
+        4
+      ],
+      "to": [
+        9,
+        4
+      ],
+      "piece": "general",
+      "color": "black",
+      "captured": null
+    },
+    {
+      "from": [
+        2,
+        1
+      ],
+      "to": [
+        4,
+        1
+      ],
+      "piece": "cannon",
+      "color": "red",
+      "captured": null
+    },
+    {
+      "from": [
+        7,
+        1
+      ],
+      "to": [
+        7,
+        0
+      ],
+      "piece": "cannon",
+      "color": "black",
+      "captured": null
+    },
+    {
+      "from": [
+        4,
+        1
+      ],
+      "to": [
+        4,
+        4
+      ],
+      "piece": "cannon",
+      "color": "red",
+      "captured": null
+    }
+  ],
+  "result": "red_win",
+  "is_ai_game": true,
+  "ai_difficulty": "pikafish_easy",
+  "saved_at": "2026-03-01T12:40:57.961394"
+}

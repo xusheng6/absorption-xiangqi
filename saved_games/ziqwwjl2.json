@@ -1,0 +1,61 @@
+{
+  "game_id": "ziqwwjl2",
+  "moves": [
+    {
+      "from": [
+        5,
+        7
+      ],
+      "to": [
+        5,
+        6
+      ],
+      "piece": "horse",
+      "color": "red",
+      "captured": "soldier"
+    },
+    {
+      "from": [
+        3,
+        1
+      ],
+      "to": [
+        0,
+        1
+      ],
+      "piece": "cannon",
+      "color": "black",
+      "captured": null
+    },
+    {
+      "from": [
+        0,
+        2
+      ],
+      "to": [
+        2,
+        0
+      ],
+      "piece": "elephant",
+      "color": "red",
+      "captured": null
+    },
+    {
+      "from": [
+        8,
+        0
+      ],
+      "to": [
+        8,
+        3
+      ],
+      "piece": "chariot",
+      "color": "black",
+      "captured": null
+    }
+  ],
+  "result": "black_win",
+  "is_ai_game": true,
+  "ai_difficulty": "pikafish_easy",
+  "saved_at": "2026-03-01T16:34:00.568147"
+}
